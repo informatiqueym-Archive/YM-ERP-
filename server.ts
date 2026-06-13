@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import session from "express-session";
@@ -24,7 +25,7 @@ import { requireAuth, requireModule, requireSuperAdmin } from "./routes/rbac";
 const prisma = new PrismaClient();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Configuration d'upload avec Multer (Fichiers transit)
 const storage = multer.diskStorage({

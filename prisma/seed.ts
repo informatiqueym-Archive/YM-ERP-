@@ -4,6 +4,12 @@ import bcryptjs from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  const userCount = await prisma.user.count().catch(() => 0);
+  if (userCount > 0) {
+    console.log("La base de données contient déjà des données. Cycle de peuplement ignoré.");
+    return;
+  }
+
   console.log("Début du peuplement de la base de données...");
 
   // Nettoyage de la base
