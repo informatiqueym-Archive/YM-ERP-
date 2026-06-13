@@ -1,0 +1,149 @@
+<%- include('../../partials/header') %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h2 font-display text-slate-800 me-2">Gestion des Utilisateurs</h1>
+    <p class="text-muted mb-0">Administrez les rôles, les permis d'accès et les comptes collaborateurs de BANA ERP.</p>
+  </div>
+  <a href="/admin/users/create" class="btn btn-primary rounded-pill px-4 shadow-sm">
+    <i class="bi bi-person-plus-fill me-2"></i>Créer un collaborateur
+  </a>
+</div>
+
+<div class="row">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+      <div class="card-header bg-white border-bottom py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 text-slate-700 fw-bold">Liste des comptes collaborateurs</h5>
+          <span class="badge bg-primary-subtle text-primary py-1.5 px-3 rounded-pill fw-semibold">
+            <%= users.length %> utilisateurs enregistrés
+          </span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light text-slate-600 font-sans uppercase text-xs tracking-wider">
+            <tr>
+              <th class="ps-4 py-3">Nom / Prénom</th>
+              <th class="py-3">Email</th>
+              <th class="py-3">Société</th>
+              <th class="py-3">Rôle système</th>
+              <th class="py-3">État compte</th>
+              <th class="py-3">Dernière Connexion</th>
+              <th class="pe-4 py-3 text-end" style="width: 180px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="border-top-0 text-slate-700">
+            <% if (users.length === 0) { %>
+              <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                  <i class="bi bi-people display-4 d-block mb-3 text-slate-300"></i>
+                  Aucun utilisateur n'a été créé pour le moment.
+                </td>
+              </tr>
+            <% } else { %>
+              <% users.forEach(targetUser => { %>
+                <tr>
+                  <td class="ps-4 py-3 fw-medium">
+                    <div class="d-flex align-items-center">
+                      <div class="rounded-circle text-white bg-secondary d-flex align-items-center justify-content-center me-3" style="width: 36px; height: 36px; font-size: 0.95rem;">
+                        <%= (targetUser.prenom ? targetUser.prenom[0] : '') %><%= targetUser.nom[0] %>
+                      </div>
+                      <div>
+                        <div class="fw-semibold text-slate-800"><%= targetUser.nom %> <%= targetUser.prenom || "" %></div>
+                        <% if (targetUser.force_pwd_change) { %>
+                          <span class="badge bg-warning-subtle text-warning font-sans" style="font-size: 0.7rem;">Changement PWD forcé</span>
+                        <% } %>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3 text-slate-600"><%= targetUser.email %></td>
+                  <td class="py-3 text-slate-600 fw-semibold"><%= targetUser.societe %></td>
+                  <td class="py-3">
+                    <span class="badge rounded-pill px-3 py-1.5 font-sans uppercase tracking-wider
+                      <% if (targetUser.role === 'super_admin') { %>
+                        bg-black text-white
+                      <% } else if (targetUser.role === 'comptable') { %>
+                        bg-info text-dark
+                      <% } else if (targetUser.role === 'commercial') { %>
+                        bg-primary text-white
+                      <% } else if (targetUser.role === 'operationnel') { %>
+                        bg-warning text-dark
+                      <% } else if (targetUser.role === 'magasinier') { %>
+                        bg-success text-white
+                      <% } else if (targetUser.role === 'lecture') { %>
+                        bg-secondary text-white
+                      <% } else { %>
+                        bg-light text-dark
+                      <% } %>" style="font-size: 0.72rem;">
+                      <%= targetUser.role %>
+                    </span>
+                  </td>
+                  <td class="py-3">
+                    <% if (targetUser.actif) { %>
+                      <span class="badge bg-success-subtle text-success py-1 px-2.5 rounded-pill"><i class="bi bi-check-circle me-1"></i>Actif</span>
+                    <% } else { %>
+                      <span class="badge bg-danger-subtle text-danger py-1 px-2.5 rounded-pill"><i class="bi bi-slash-circle me-1"></i>Désactivé</span>
+                    <% } %>
+                  </td>
+                  <td class="py-3 text-muted small">
+                    <%= targetUser.last_login ? new Date(targetUser.last_login).toLocaleString('fr-FR') : "Jamais connecté" %>
+                  </td>
+                  <td class="pe-4 py-3 text-end">
+                    <div class="d-flex justify-content-end gap-1">
+                      <!-- Edit -->
+                      <a href="/admin/users/edit/<%= targetUser.id %>" class="btn btn-outline-secondary btn-sm" title="Modifier">
+                        <i class="bi bi-pencil-square"></i>
+                      </a>
+                      
+                      <!-- Toggle Status -->
+                      <form action="/admin/users/toggle/<%= targetUser.id %>" method="POST" class="d-inline" onsubmit="return confirm('Voulez-vous modifier le statut de cet utilisateur ?');">
+                        <button type="submit" class="btn btn-sm <%= targetUser.actif ? 'btn-outline-danger' : 'btn-outline-success' %>" title="<%= targetUser.actif ? 'Désactiver' : 'Activer' %>">
+                          <i class="bi <%= targetUser.actif ? 'bi-shield-x' : 'bi-shield-check' %>"></i>
+                        </button>
+                      </form>
+
+                      <!-- Reset Pwd Button Trigger Modal -->
+                      <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#resetModal<%= targetUser.id %>" title="Changer mot de passe">
+                        <i class="bi bi-key-fill"></i>
+                      </button>
+                    </div>
+
+                    <!-- Reset Password Modal -->
+                    <div class="modal fade text-start" id="resetModal<%= targetUser.id %>" tabindex="-1" aria-hidden="true">
+                      <div class="modal-dialog modal-dialog-centered">
+                        <form action="/admin/users/reset-pwd/<%= targetUser.id %>" method="POST" class="modal-content border-0 shadow">
+                          <div class="modal-header bg-warning py-3">
+                            <h5 class="modal-title text-dark fw-bold"><i class="bi bi-key-fill me-2"></i>Réinitialiser le mot de passe</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                          </div>
+                          <div class="modal-body p-4">
+                            <p class="text-slate-600 mb-3">Réinitialisation pour <strong><%= targetUser.nom %></strong>. L'utilisateur devra obligatoirement changer ce mot de passe temporaire lors de sa prochaine connexion.</p>
+                            <div class="mb-3">
+                              <label class="form-label fw-bold">Nouveau mot de passe temporaire</label>
+                              <div class="input-group">
+                                <span class="input-group-text bg-white text-muted"><i class="bi bi-shield-lock"></i></span>
+                                <input type="text" name="new_password" class="form-control" placeholder="Entrez un mot de passe solide (ex: Bana@<%= targetUser.nom %>2024)" required>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="modal-footer p-3 bg-light border-top-0">
+                            <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-warning rounded-pill px-4 text-dark fw-bold">Appliquer la réinitialisation</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../../partials/footer') %>

@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               Int                 @id @default(autoincrement())
+  nom              String
+  prenom           String?
+  email            String              @unique
+  password         String
+  role             String              @default("operationnel")
+  societe          String
+  actif            Boolean             @default(true)
+  force_pwd_change Boolean             @default(false)
+  last_login       DateTime?
+  created_at       DateTime            @default(now())
+  created_by       Int?
+  logs             ActivityLog[]
+  taches           Tache[]
+  comments         TacheComment[]
+  ecritures        EcritureComptable[]
+}
+
+model Client {
+  id        Int        @id @default(autoincrement())
+  nom       String
+  niu       String?
+  rccm      String?
+  adresse   String?
+  tel       String?
+  societe   String
+  documents Document[]
+  dossiers  Dossier[]
+}
+
+model Dossier {
+  id            Int      @id @default(autoincrement())
+  numero        String   @unique
+  client_id     Int
+  port          String
+  nature        String
+  etat          String
+  bl            String   @default("")
+  contenu       String?
+  droits_douane Float?
+  validation    Boolean  @default(false)
+  valeur_douane Float?
+  created_at    DateTime @default(now())
+  client        Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  taches        Tache[]
+}
+
+model Tache {
+  id             Int       @id @default(autoincrement())
+  dossier_id     Int
+  titre          String
+  intervenant_id Int?
+  etat           String
+  observations   String?
+  deadline       DateTime?
+  created_at     DateTime  @default(now())
+  archive        Boolean   @default(false)
+  intervenant    User?     @relation(fields: [intervenant_id], references: [id])
+  dossier        Dossier   @relation(fields: [dossier_id], references: [id], onDelete: Cascade)
+  subtasks       SubTask[]
+  comments       TacheComment[]
+}
+
+model TacheComment {
+  id           Int      @id @default(autoincrement())
+  tache_id     Int
+  user_id      Int
+  contenu      String
+  is_next_step Boolean  @default(false)
+  created_at   DateTime @default(now())
+  tache        Tache    @relation(fields:[tache_id], references:[id], onDelete: Cascade)
+  user         User     @relation(fields:[user_id], references:[id], onDelete: Cascade)
+}
+
+model SubTask {
+  id         Int      @id @default(autoincrement())
+  tache_id   Int
+  titre      String
+  fait       Boolean  @default(false)
+  created_at DateTime @default(now())
+  tache      Tache    @relation(fields: [tache_id], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id         Int           @id @default(autoincrement())
+  type       String
+  numero     String        @unique
+  client_id  Int
+  societe    String
+  total_ht   Float
+  total_ttc  Float
+  etat       String
+  created_at DateTime      @default(now())
+  client     Client        @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  lines      InvoiceLine[]
+  payments   Payment[]
+}
+
+model InvoiceLine {
+  id            Int      @id @default(autoincrement())
+  document_id   Int
+  description   String
+  quantite      Int
+  prix_unitaire Float
+  taxe_id       String
+  total         Float
+  document      Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+}
+
+model Stock {
+  id            Int     @id @default(autoincrement())
+  nom           String
+  quantite      Int
+  stock_min     Int
+  prix_vente    Float
+  lieu_stockage String?
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  document_id   Int
+  montant       Float
+  moyen         String
+  date_paiement DateTime @default(now())
+  document      Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  action     String
+  entity     String
+  entity_id  String?
+  meta       String?
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model CompteComptable {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  nom         String
+  type        String
+  sens_normal String
+  societe     String
+  actif       Boolean  @default(true)
+  ecritures   EcritureComptable[]
+}
+
+model EcritureComptable {
+  id          Int      @id @default(autoincrement())
+  journal     String
+  date        DateTime @default(now())
+  piece_ref   String
+  compte_id   Int
+  libelle     String
+  debit       Float    @default(0)
+  credit      Float    @default(0)
+  societe     String
+  created_by  Int
+  locked      Boolean  @default(false)
+  compte      CompteComptable @relation(fields:[compte_id], references:[id])
+  user        User @relation(fields:[created_by], references:[id])
+}
+
+model PeriodeComptable {
+  id       Int      @id @default(autoincrement())
+  mois     Int
+  annee    Int
+  locked   Boolean  @default(false)
+  societe  String
+  @@unique([mois, annee, societe])
+}
+
+model TauxChange {
+  id       Int      @id @default(autoincrement())
+  devise   String
+  taux     Float
+  date     DateTime @default(now())
+}
+
+model Fournisseur {
+  id        Int     @id @default(autoincrement())
+  nom       String
+  niu       String?
+  rccm      String?
+  adresse   String?
+  tel       String?
+  email     String?
+  devise    String  @default("FCFA")
+  societe   String
+  actif     Boolean @default(true)
+  commandes BonCommande[]
+  factures  FactureFournisseur[]
+}
+
+model BonCommande {
+  id             Int      @id @default(autoincrement())
+  numero         String   @unique
+  fournisseur_id Int
+  date           DateTime @default(now())
+  date_livraison DateTime?
+  etat           String   @default("Brouillon")
+  total_ht       Float    @default(0)
+  total_ttc      Float    @default(0)
+  notes          String?
+  societe        String
+  created_by     Int
+  fournisseur    Fournisseur @relation(fields:[fournisseur_id], references:[id])
+  lignes         LigneBonCommande[]
+  factures       FactureFournisseur[]
+}
+
+model LigneBonCommande {
+  id            Int    @id @default(autoincrement())
+  commande_id   Int
+  description   String
+  quantite      Float
+  prix_unitaire Float
+  total         Float
+  commande      BonCommande @relation(fields:[commande_id], references:[id], onDelete: Cascade)
+}
+
+model FactureFournisseur {
+  id             Int      @id @default(autoincrement())
+  numero         String
+  commande_id    Int?
+  fournisseur_id Int
+  date           DateTime @default(now())
+  echeance       DateTime?
+  montant_ht     Float
+  montant_ttc    Float
+  etat           String   @default("En attente")
+  societe        String
+  fournisseur    Fournisseur @relation(fields:[fournisseur_id], references:[id])
+  commande       BonCommande? @relation(fields:[commande_id], references:[id])
+  paiements      PaiementFournisseur[]
+}
+
+model PaiementFournisseur {
+  id         Int      @id @default(autoincrement())
+  facture_id Int
+  montant    Float
+  moyen      String
+  date       DateTime @default(now())
+  facture    FactureFournisseur @relation(fields:[facture_id], references:[id], onDelete: Cascade)
+}
+

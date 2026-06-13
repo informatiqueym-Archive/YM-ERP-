@@ -1,0 +1,156 @@
+import { Router } from "express";
+import { PrismaClient } from "@prisma/client";
+import bcryptjs from "bcryptjs";
+
+const router = Router();
+const prisma = new PrismaClient();
+
+// Helper pour enregistrer dans le journal d'activité
+async function logActivity(userId: number, action: string, entity: string, entityId?: number | string) {
+  try {
+    await prisma.activityLog.create({
+      data: {
+        user_id: userId,
+        action,
+        entity,
+        entity_id: entityId !== undefined && entityId !== null ? String(entityId) : null,
+      },
+    });
+  } catch (error) {
+    console.error("Erreur de journalisation d'activité dans auth route :", error);
+  }
+}
+
+// GET /login
+router.get("/login", (req: any, res: any) => {
+  if (req.session && req.session.userId) {
+    return res.redirect("/dashboard");
+  }
+  const error = res.locals.error_msg || req.session.error_msg || "";
+  res.render("auth/login", { error_msg: error });
+});
+
+// GET /demo-login
+router.get("/demo-login", async (req: any, res: any) => {
+  try {
+    let user = await prisma.user.findFirst({
+      where: { email: "admin@ym-transit.cm" }
+    });
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { role: "super_admin" }
+      });
+    }
+    if (!user) {
+      user = await prisma.user.findFirst();
+    }
+    if (!user) {
+      req.session.error_msg = "Aucun utilisateur disponible pour la démonstration.";
+      return res.redirect("/login");
+    }
+    req.session.userId = user.id;
+    req.session.user = user;
+    req.session.success_msg = `Bienvenue sur votre espace d'administration de démonstration !`;
+    await logActivity(user.id, "CONNEXION_DEMO", "User", user.id);
+    req.session.save((err: any) => {
+      res.redirect("/dashboard");
+    });
+  } catch (error) {
+    console.error("[AUTH] Erreur dans le login de démonstration :", error);
+    res.redirect("/login");
+  }
+});
+
+// POST /login
+router.post("/login", async (req: any, res: any) => {
+  try {
+    const { nom, password } = req.body;
+    console.log(`[AUTH] Tentative de connexion pour le nom/identifiant: "${nom}"`);
+
+    if (!nom || !password) {
+      req.session.error_msg = "Veuillez remplir tous les champs.";
+      return res.redirect("/login");
+    }
+
+    // Recherche de l'utilisateur par nom (username), email ou "admin" de test (insensible à la casse)
+    const normalizedNom = nom.trim().toLowerCase();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { nom: { equals: nom.trim() } },
+          { email: { equals: nom.trim() } },
+          { email: { equals: normalizedNom } },
+          ...(normalizedNom === "admin" ? [{ email: { equals: "admin@ym-transit.cm" } }] : []),
+          ...(normalizedNom === "yannick abega" ? [{ email: { equals: "admin@ym-transit.cm" } }] : []),
+          ...(normalizedNom === "mamadou bello" ? [{ email: { equals: "transit@ym-transit.cm" } }] : []),
+          ...(normalizedNom === "claire ngo ntamack" ? [{ email: { equals: "compta@ym-transit.cm" } }] : [])
+        ]
+      }
+    });
+
+    if (!user) {
+      console.warn(`[AUTH] Aucun utilisateur trouvé dans la base pour l'identifiant: "${nom}"`);
+      req.session.error_msg = "Identifiant ou mot de passe incorrect.";
+      return res.redirect("/login");
+    }
+
+    console.log(`[AUTH] Utilisateur identifié: ID ${user.id} - ${user.nom} (Role: ${user.role}, Actif: ${user.actif})`);
+
+    if (!user.actif) {
+      console.warn(`[AUTH] Le compte ${user.nom} est désactivé.`);
+      req.session.error_msg = "Compte désactivé, contactez l'administrateur";
+      return res.redirect("/login");
+    }
+
+    // Validation du mot de passe
+    const match = await bcryptjs.compare(password, user.password);
+    console.log(`[AUTH] Validation hash mot de passe pour ${user.nom}: ${match ? 'SUCCÈS' : 'ÉCHEC'}`);
+
+    if (!match) {
+      req.session.error_msg = "Identifiant ou mot de passe incorrect.";
+      return res.redirect("/login");
+    }
+
+    // Mettre à jour last_login
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { last_login: new Date() }
+    });
+
+    // Succès de l'authentification
+    req.session.userId = updatedUser.id;
+    req.session.user = updatedUser;
+    req.session.success_msg = `Bienvenue sur BANA ERP, ${updatedUser.nom} !`;
+    
+    await logActivity(updatedUser.id, "CONNEXION", "User", updatedUser.id);
+
+    console.log(`[AUTH] Connexion réussie pour ${updatedUser.nom}. Enregistrement manuel de la session...`);
+    req.session.save((err: any) => {
+      if (err) {
+        console.error("[AUTH] Erreur d'enregistrement de session :", err);
+      } else {
+        console.log(`[AUTH] Session enregistrée avec succès. Redirection vers /dashboard pour l'utilisateur ID ${updatedUser.id}`);
+      }
+      res.redirect("/dashboard");
+    });
+  } catch (error) {
+    console.error("[AUTH] Erreur d'authentification :", error);
+    req.session.error_msg = "Une erreur est survenue lors de la connexion.";
+    res.redirect("/login");
+  }
+});
+
+// GET /logout
+router.get("/logout", async (req: any, res: any) => {
+  if (req.session && req.session.userId) {
+    await logActivity(req.session.userId, "DECONNEXION", "User", req.session.userId);
+  }
+  req.session.destroy((err: any) => {
+    if (err) {
+      console.error("Erreur lors de la déconnexion :", err);
+    }
+    res.redirect("/login");
+  });
+});
+
+export default router;
