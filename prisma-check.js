@@ -2,40 +2,108 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 
-let dbPath = path.resolve("prisma", "dev.db");
-const dbUrl = process.env.DATABASE_URL;
+console.log("🚀 [PRISMA-CHECK] Démarrage du script de résilience de la base de données...");
 
-if (dbUrl && dbUrl.startsWith("file:")) {
-  const filePath = dbUrl.substring(5); // Enlever "file:"
-  dbPath = path.isAbsolute(filePath)
-    ? filePath
-    : path.resolve("prisma", filePath); // Résoudre par rapport au dossier prisma pour correspondre à Prisma !
+// Fonction utilitaire pour forcer une variable d'environnement dans .env et process.env
+function forceEnvironmentVariable(key, value) {
+  const envPath = path.resolve(".env");
+  let envContent = "";
+  if (fs.existsSync(envPath)) {
+    envContent = fs.readFileSync(envPath, "utf-8");
+  } else if (fs.existsSync(".env.example")) {
+    envContent = fs.readFileSync(".env.example", "utf-8");
+  }
+
+  const lines = envContent.split(/\r?\n/);
+  let found = false;
+  const newLines = lines.map((line) => {
+    if (line.trim().startsWith(`${key}=`)) {
+      found = true;
+      return `${key}="${value}"`;
+    }
+    return line;
+  });
+
+  if (!found) {
+    newLines.push(`${key}="${value}"`);
+  }
+
+  fs.writeFileSync(envPath, newLines.join("\n"));
+  process.env[key] = value;
+  console.log(`📡 [PRISMA-CHECK] .env mis à jour : ${key}="${value}"`);
 }
 
-// 1. Helper function to delete files or directories safely
+// Fonction utilitaire pour supprimer en toute sécurité
 function safeDelete(p) {
   if (fs.existsSync(p)) {
     try {
       const stats = fs.statSync(p);
       if (stats.isDirectory()) {
         fs.rmSync(p, { recursive: true, force: true });
-        console.log(`✅ Dossier supprimé avec succès : ${p}`);
+        console.log(`✅ [PRISMA-CHECK] Dossier supprimé avec succès : ${p}`);
       } else {
         fs.unlinkSync(p);
-        console.log(`✅ Fichier supprimé avec succès : ${p}`);
+        console.log(`✅ [PRISMA-CHECK] Fichier supprimé avec succès : ${p}`);
       }
     } catch (err) {
-      console.error(`❌ Impossible de supprimer ${p}: ${err.message}`);
+      console.error(`❌ [PRISMA-CHECK] Impossible de supprimer ${p}: ${err.message}`);
     }
   }
 }
 
-// 2. Initial Header/Type Validation
+// 1. Détermination initiale du chemin de la base de données
+let dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+  console.log("ℹ️ [PRISMA-CHECK] Aucune DATABASE_URL fournie. Configuration d'une base de données locale...");
+  forceEnvironmentVariable("DATABASE_URL", "file:./dev.db");
+  dbUrl = "file:./dev.db";
+}
+
+let dbPath = path.resolve("prisma", "dev.db");
+if (dbUrl && dbUrl.startsWith("file:")) {
+  const filePath = dbUrl.substring(5);
+  dbPath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve("prisma", filePath);
+}
+
+console.log(`📍 [PRISMA-CHECK] Chemin de la base de données configuré : ${dbPath}`);
+
+// 2. Vérification des permissions d'écriture sur le répertoire de destination
+const dbDir = path.dirname(dbPath);
+let isWriteable = false;
+
+try {
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  // Test d'écriture
+  const testFile = path.join(dbDir, `.write-test-${Date.now()}`);
+  fs.writeFileSync(testFile, "test");
+  fs.unlinkSync(testFile);
+  isWriteable = true;
+  console.log(`✅ [PRISMA-CHECK] Le dossier de destination ${dbDir} a des droits d'écriture d'accès valides.`);
+} catch (writeErr) {
+  console.error(`⚠️ [PRISMA-CHECK] Le dossier ${dbDir} n'est PAS accessible en écriture : ${writeErr.message}`);
+}
+
+// 3. Bascule préventive si le répertoire de destination n'est pas accessible en écriture
+if (!isWriteable) {
+  console.log("⚠️ [PRISMA-CHECK] Bascule automatique sur la base de données locale sécurisée ./prisma/dev.db...");
+  forceEnvironmentVariable("DATABASE_URL", "file:./dev.db");
+  dbPath = path.resolve("prisma", "dev.db");
+  const localDir = path.dirname(dbPath);
+  if (!fs.existsSync(localDir)) {
+    fs.mkdirSync(localDir, { recursive: true });
+  }
+}
+
+// 4. Validation physique du fichier SQLite s'il y en a un existant
 if (fs.existsSync(dbPath)) {
   try {
     const stats = fs.statSync(dbPath);
     if (stats.isDirectory()) {
-      console.log(`⚠️ ${dbPath} est un dossier (erreur Docker/Coolify de volume possible). Suppression récursive...`);
+      console.log(`⚠️ [PRISMA-CHECK] ${dbPath} est détecté comme un dossier. Suppression préventive...`);
       safeDelete(dbPath);
     } else {
       const fd = fs.openSync(dbPath, "r");
@@ -45,55 +113,79 @@ if (fs.existsSync(dbPath)) {
 
       const header = buffer.toString("utf-8", 0, 15);
       if (header !== "SQLite format 3") {
-        console.log(`⚠️ Le fichier ${dbPath} n'est pas un fichier SQLite valide (physiquement corrompu). Suppression préventive...`);
+        console.log(`⚠️ [PRISMA-CHECK] Fichier corrompu détecté à ${dbPath}. Suppression préventive...`);
         safeDelete(dbPath);
       } else {
-        console.log(`✅ Le fichier ${dbPath} a un en-tête SQLite valide. Tentative de migration...`);
+        console.log(`✅ [PRISMA-CHECK] SQLite valide détecté à ${dbPath}.`);
       }
     }
   } catch (error) {
-    console.log(`⚠️ Impossible de valider ${dbPath}. Suppression préventive...`, error);
+    console.log(`⚠️ [PRISMA-CHECK] Impossible de valider ${dbPath}. Nettoyage automatique...`, error.message);
     safeDelete(dbPath);
   }
-} else {
-  console.log(`ℹ️ Aucun fichier ${dbPath} détecté. Il sera généré.`);
 }
 
-// S'assurer que le dossier parent existe
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
-// 3. Perform DB Push with Automatic Re-try on failure (e.g. malformed DB)
+// 5. Exécution du push Prisma avec rattrapage total
+let pushSuccess = false;
 try {
-  console.log("👉 Exécution de : npx prisma db push --accept-loose-schema");
+  console.log("👉 [PRISMA-CHECK] Lancement de : npx prisma db push --accept-loose-schema");
   execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+  pushSuccess = true;
 } catch (error) {
-  console.log("⚠️ Le push Prisma a échoué. La base de données est peut-être corrompue (malformed ou verrouillée). Réinitialisation de la base de données...");
+  console.error("⚠️ [PRISMA-CHECK] Premier essai de push échoué. Tentative de réinitialisation physique...");
   safeDelete(dbPath);
-  // Supprimer également les fichiers journaux SQLite s'ils existent
+  // Nettoyer les fichiers journaux
   const journalFiles = [dbPath + "-journal", dbPath + "-shm", dbPath + "-wal"];
   for (const jFile of journalFiles) {
     safeDelete(jFile);
   }
-  
-  // Réessayer avec une base propre
-  console.log("👉 Re-tentative de push sur une nouvelle base de données...");
-  execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
-}
 
-// 3. Seed Database
-try {
-  const seedPath = path.resolve("dist", "seed.cjs");
-  if (fs.existsSync(seedPath)) {
-    console.log("👉 Exécution de : node dist/seed.cjs");
-    execSync("node dist/seed.cjs", { stdio: "inherit" });
-  } else {
-    console.log("ℹ️ Fichier seed.cjs introuvable dans dist/. Étape du seed ignorée.");
+  try {
+    console.log("👉 [PRISMA-CHECK] Seconde tentative de push...");
+    execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+    pushSuccess = true;
+  } catch (secondError) {
+    console.error("❌ [PRISMA-CHECK] Seconde tentative de push échouée :", secondError.message);
   }
-} catch (error) {
-  console.error("⚠️ Échec du peuplement (seed) de la base de données:", error);
 }
 
-console.log("✅ Base de données initialisée avec succès !");
+// 6. Si le push a toujours échoué, bascule forcée ultime de sauvetage sur dev.db locale
+if (!pushSuccess && dbPath !== path.resolve("prisma", "dev.db")) {
+  console.log("🚨 [PRISMA-CHECK] Erreurs persistantes sur la base principale. Bascule forcée d'urgence sur la base locale ./prisma/dev.db...");
+  forceEnvironmentVariable("DATABASE_URL", "file:./dev.db");
+  dbPath = path.resolve("prisma", "dev.db");
+  
+  // S'assurer que les journaux locaux soient propres
+  safeDelete(dbPath);
+  const journalFiles = [dbPath + "-journal", dbPath + "-shm", dbPath + "-wal"];
+  for (const jFile of journalFiles) {
+    safeDelete(jFile);
+  }
+
+  try {
+    console.log("👉 [PRISMA-CHECK] Tentative de push de sauvetage locale...");
+    execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+    pushSuccess = true;
+  } catch (fallbackError) {
+    console.error("❌ [PRISMA-CHECK] Échec ultime du push de sauvetage locale :", fallbackError.message);
+  }
+}
+
+// 7. Seed Database
+if (pushSuccess) {
+  try {
+    const seedPath = path.resolve("dist", "seed.cjs");
+    if (fs.existsSync(seedPath)) {
+      console.log("👉 [PRISMA-CHECK] Exécution du peuplement de données : node dist/seed.cjs");
+      execSync("node dist/seed.cjs", { stdio: "inherit" });
+    } else {
+      console.log("ℹ️ [PRISMA-CHECK] Fichier seed.cjs absent de dist/. Le seed à froid sera exécuté par le serveur Express au démarrage.");
+    }
+  } catch (error) {
+    console.error("⚠️ [PRISMA-CHECK] Échec lors du seed de la base :", error.message);
+  }
+} else {
+  console.warn("⚠️ [PRISMA-CHECK] Impossible d'exécuter le seed car la structure de la base de données n'a pas pu être validée.");
+}
+
+console.log("✅ [PRISMA-CHECK] Procédure d'initialisation de la base de données terminée. Passage à l'application.");
