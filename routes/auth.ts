@@ -44,6 +44,37 @@ router.get("/demo-login", async (req: any, res: any) => {
     if (!user) {
       user = await prisma.user.findFirst();
     }
+    
+    // Auto-création de l'administrateur de démo à la volée s'il est absent
+    if (!user) {
+      console.log("[AUTH] Aucun utilisateur trouvé pour la démo. Création du compte administrateur à la volée...");
+      const adminHash = await bcryptjs.hash("admin123", 10);
+      user = await prisma.user.create({
+        data: {
+          nom: "Yannick Abega",
+          email: "admin@ym-transit.cm",
+          password: adminHash,
+          role: "super_admin",
+          societe: "YM-TRANSIT Transit & Logistics Ltd",
+          actif: true,
+        },
+      });
+
+      // Lancement du seed complet en arrière-plan pour peupler les données de démonstration de manière asynchrone
+      try {
+        const { exec } = await import("child_process");
+        const path = await import("path");
+        const seedPath = path.resolve("dist", "seed.cjs");
+        console.log("[AUTH] Déclenchement de l'auto-seed complet en arrière-plan...");
+        exec(`node "${seedPath}"`, (err, stdout, stderr) => {
+          if (err) console.error("[AUTH] Échec du seed automatique en arrière-plan :", err);
+          else console.log("[AUTH] Seed automatique de démo en arrière-plan terminé avec succès !");
+        });
+      } catch (seedErr: any) {
+        console.error("[AUTH] Erreur lors du déclenchement du seed en arrière-plan :", seedErr.message);
+      }
+    }
+
     if (!user) {
       req.session.error_msg = "Aucun utilisateur disponible pour la démonstration.";
       return res.redirect("/login");

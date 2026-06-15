@@ -2,36 +2,58 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 
-let dbPath = path.join("prisma", "dev.db");
+let dbPath = path.resolve("prisma", "dev.db");
 const dbUrl = process.env.DATABASE_URL;
 
 if (dbUrl && dbUrl.startsWith("file:")) {
-  const fileRelativeOrAbsolute = dbUrl.replace(/^file:/, "");
-  dbPath = path.isAbsolute(fileRelativeOrAbsolute)
-    ? fileRelativeOrAbsolute
-    : path.resolve(fileRelativeOrAbsolute);
+  const filePath = dbUrl.substring(5); // Enlever "file:"
+  dbPath = path.isAbsolute(filePath)
+    ? filePath
+    : path.resolve("prisma", filePath); // Résoudre par rapport au dossier prisma pour correspondre à Prisma !
 }
 
-// 1. Initial Header Validation
+// 1. Helper function to delete files or directories safely
+function safeDelete(p) {
+  if (fs.existsSync(p)) {
+    try {
+      const stats = fs.statSync(p);
+      if (stats.isDirectory()) {
+        fs.rmSync(p, { recursive: true, force: true });
+        console.log(`✅ Dossier supprimé avec succès : ${p}`);
+      } else {
+        fs.unlinkSync(p);
+        console.log(`✅ Fichier supprimé avec succès : ${p}`);
+      }
+    } catch (err) {
+      console.error(`❌ Impossible de supprimer ${p}: ${err.message}`);
+    }
+  }
+}
+
+// 2. Initial Header/Type Validation
 if (fs.existsSync(dbPath)) {
   try {
-    const fd = fs.openSync(dbPath, "r");
-    const buffer = Buffer.alloc(16);
-    fs.readSync(fd, buffer, 0, 16, 0);
-    fs.closeSync(fd);
-
-    const header = buffer.toString("utf-8", 0, 15);
-    if (header !== "SQLite format 3") {
-      console.log(`⚠️ Le fichier ${dbPath} n'est pas un fichier SQLite valide (physiquement corrompu). Suppression préventive...`);
-      fs.unlinkSync(dbPath);
+    const stats = fs.statSync(dbPath);
+    if (stats.isDirectory()) {
+      console.log(`⚠️ ${dbPath} est un dossier (erreur Docker/Coolify de volume possible). Suppression récursive...`);
+      safeDelete(dbPath);
     } else {
-      console.log(`✅ Le fichier ${dbPath} a un en-tête SQLite valide. Tentative de migration...`);
+      const fd = fs.openSync(dbPath, "r");
+      const buffer = Buffer.alloc(16);
+      fs.readSync(fd, buffer, 0, 16, 0);
+      fs.closeSync(fd);
+
+      const header = buffer.toString("utf-8", 0, 15);
+      if (header !== "SQLite format 3") {
+        console.log(`⚠️ Le fichier ${dbPath} n'est pas un fichier SQLite valide (physiquement corrompu). Suppression préventive...`);
+        safeDelete(dbPath);
+      } else {
+        console.log(`✅ Le fichier ${dbPath} a un en-tête SQLite valide. Tentative de migration...`);
+      }
     }
   } catch (error) {
     console.log(`⚠️ Impossible de valider ${dbPath}. Suppression préventive...`, error);
-    try {
-      fs.unlinkSync(dbPath);
-    } catch (_) {}
+    safeDelete(dbPath);
   }
 } else {
   console.log(`ℹ️ Aucun fichier ${dbPath} détecté. Il sera généré.`);
@@ -43,24 +65,17 @@ if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
-// 2. Perform DB Push with Automatic Re-try on failure (e.g. malformed DB)
+// 3. Perform DB Push with Automatic Re-try on failure (e.g. malformed DB)
 try {
   console.log("👉 Exécution de : npx prisma db push --accept-loose-schema");
   execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
 } catch (error) {
   console.log("⚠️ Le push Prisma a échoué. La base de données est peut-être corrompue (malformed ou verrouillée). Réinitialisation de la base de données...");
-  if (fs.existsSync(dbPath)) {
-    try {
-      fs.unlinkSync(dbPath);
-      // Supprimer également les fichiers journaux SQLite s'ils existent
-      const journalFiles = [dbPath + "-journal", dbPath + "-shm", dbPath + "-wal"];
-      for (const jFile of journalFiles) {
-        if (fs.existsSync(jFile)) fs.unlinkSync(jFile);
-      }
-      console.log(`✅ Base de données corrompue supprimée : ${dbPath}`);
-    } catch (err) {
-      console.error(`❌ Impossible de supprimer la base de données : ${err.message}`);
-    }
+  safeDelete(dbPath);
+  // Supprimer également les fichiers journaux SQLite s'ils existent
+  const journalFiles = [dbPath + "-journal", dbPath + "-shm", dbPath + "-wal"];
+  for (const jFile of journalFiles) {
+    safeDelete(jFile);
   }
   
   // Réessayer avec une base propre
