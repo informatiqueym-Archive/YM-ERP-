@@ -128,8 +128,8 @@ if (fs.existsSync(dbPath)) {
 // 5. Exécution du push Prisma avec rattrapage total
 let pushSuccess = false;
 try {
-  console.log("👉 [PRISMA-CHECK] Lancement de : npx prisma db push --accept-loose-schema");
-  execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+  console.log("👉 [PRISMA-CHECK] Lancement de : npx prisma db push --accept-data-loss");
+  execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
   pushSuccess = true;
 } catch (error) {
   console.error("⚠️ [PRISMA-CHECK] Premier essai de push échoué. Tentative de réinitialisation physique...");
@@ -142,7 +142,7 @@ try {
 
   try {
     console.log("👉 [PRISMA-CHECK] Seconde tentative de push...");
-    execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+    execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
     pushSuccess = true;
   } catch (secondError) {
     console.error("❌ [PRISMA-CHECK] Seconde tentative de push échouée :", secondError.message);
@@ -164,7 +164,7 @@ if (!pushSuccess && dbPath !== path.resolve("prisma", "dev.db")) {
 
   try {
     console.log("👉 [PRISMA-CHECK] Tentative de push de sauvetage locale...");
-    execSync("npx prisma db push --accept-loose-schema", { stdio: "inherit" });
+    execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
     pushSuccess = true;
   } catch (fallbackError) {
     console.error("❌ [PRISMA-CHECK] Échec ultime du push de sauvetage locale :", fallbackError.message);

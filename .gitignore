@@ -1,13 +1,17 @@
 node_modules/
 build/
-dist/
 coverage/
 .DS_Store
 *.log
-.env*
-!.env.example
 
-# SQLite Database files
+# dist is built inside Docker — exclude from git
+dist/
+
+# Never commit .env — set these in Coolify environment variables panel
+.env
+.env.local
+
+# SQLite database files — stored in Docker volume, not git
 *.db
 *.db-journal
 *.db-shm

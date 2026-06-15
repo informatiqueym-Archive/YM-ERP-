@@ -30,7 +30,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 // Configuration d'upload avec Multer (Fichiers transit)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "./uploads/");
+    cb(null, process.env.UPLOADS_PATH || "/app/uploads/");
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -38,8 +38,9 @@ const storage = multer.diskStorage({
 });
 // Création du dossier uploads s'il n'existe pas
 import fs from "fs";
-if (!fs.existsSync("./uploads")) {
-  fs.mkdirSync("./uploads");
+const uploadsDir = process.env.UPLOADS_PATH || "/app/uploads";
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
 const upload = multer({ storage });
 
@@ -48,7 +49,7 @@ app.set("trust proxy", 1);
 app.use(
   session({
     name: "ym_transit_session",
-    secret: "ym-transit-erp-secret-key-cameroon-1337-v1",
+    secret: process.env.SESSION_SECRET || "ym-transit-erp-secret-key-cameroon-1337-v1",
     resave: true,
     saveUninitialized: true,
     cookie: {
@@ -888,7 +889,7 @@ async function seedAccounts() {
         nom: "Yannick Abega",
         prenom: "Super Admin",
         email: "admin@ym-transit.cm",
-        password: "Admin@BANA2024",
+        password: "admin123",
         role: "super_admin",
         societe: "BANA Logistics"
       },
@@ -896,7 +897,7 @@ async function seedAccounts() {
         nom: "Claire Ngo Ntamack",
         prenom: "Comptable Principal",
         email: "compta@ym-transit.cm",
-        password: "Compta@BANA2024",
+        password: "compta123",
         role: "comptable",
         societe: "BANA Logistics"
       },
@@ -904,7 +905,7 @@ async function seedAccounts() {
         nom: "Saliou Ndoumbe",
         prenom: "Commercial Export",
         email: "commercial@ym-transit.cm",
-        password: "Commercial@BANA2024",
+        password: "commercial123",
         role: "commercial",
         societe: "BANA Logistics"
       },
@@ -912,7 +913,7 @@ async function seedAccounts() {
         nom: "Mamadou Bello",
         prenom: "Transitaire Opérationnel",
         email: "transit@ym-transit.cm",
-        password: "Transit@BANA2024",
+        password: "transit123",
         role: "operationnel",
         societe: "BANA Logistics"
       },
@@ -920,7 +921,7 @@ async function seedAccounts() {
         nom: "Antoine Ndzana",
         prenom: "Magasinier Kribi",
         email: "magasin@ym-transit.cm",
-        password: "Magasin@BANA2024",
+        password: "magasin123",
         role: "magasinier",
         societe: "BANA Logistics"
       },
@@ -928,7 +929,7 @@ async function seedAccounts() {
         nom: "Auditeur Externe",
         prenom: "Lecture Seule",
         email: "lecture@ym-transit.cm",
-        password: "Lecture@BANA2024",
+        password: "lecture123",
         role: "lecture",
         societe: "BANA Logistics"
       }
@@ -938,8 +939,8 @@ async function seedAccounts() {
       const exists = await prisma.user.findUnique({
         where: { email: item.email }
       });
+      const hashedPassword = await bcryptjs.hash(item.password, 10);
       if (!exists) {
-        const hashedPassword = await bcryptjs.hash(item.password, 10);
         await prisma.user.create({
           data: {
             nom: item.nom,
@@ -954,6 +955,12 @@ async function seedAccounts() {
           }
         });
         console.log(`[SEED] Utilisateur créé pour test : email="${item.email}" (Rôle: ${item.role})`);
+      } else {
+        // Mettre à jour le mot de passe pour correspondre aux identifiants d'essai simplifiés du login
+        await prisma.user.update({
+          where: { id: exists.id },
+          data: { password: hashedPassword }
+        });
       }
     }
   } catch (error) {

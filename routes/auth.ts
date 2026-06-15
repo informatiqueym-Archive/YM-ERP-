@@ -86,8 +86,13 @@ router.get("/demo-login", async (req: any, res: any) => {
     req.session.save((err: any) => {
       res.redirect("/dashboard");
     });
-  } catch (error) {
-    console.error("[AUTH] Erreur dans le login de démonstration :", error);
+  } catch (error: any) {
+    console.error("[AUTH] Erreur dans le login de démonstration :");
+    console.error(error);
+    if (error && typeof error === "object") {
+      console.error("Prisma Code:", error.code);
+      console.error("Prisma Meta:", error.meta);
+    }
     res.redirect("/login");
   }
 });
@@ -164,8 +169,13 @@ router.post("/login", async (req: any, res: any) => {
       }
       res.redirect("/dashboard");
     });
-  } catch (error) {
-    console.error("[AUTH] Erreur d'authentification :", error);
+  } catch (error: any) {
+    console.error("[AUTH] Erreur d'authentification :");
+    console.error(error);
+    if (error && typeof error === "object") {
+      console.error("Prisma Code:", error.code);
+      console.error("Prisma Meta:", error.meta);
+    }
     req.session.error_msg = "Une erreur est survenue lors de la connexion.";
     res.redirect("/login");
   }
