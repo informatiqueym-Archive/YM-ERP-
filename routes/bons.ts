@@ -23,6 +23,35 @@ async function logActivity(userId: number, action: string, entity: string, entit
   }
 }
 
+// Helper pour créer automatiquement des tâches connectées au workflow
+async function createAutoTask(dossierId: number, title: string, description: string, targetRole: string) {
+  try {
+    const targetUser = await prisma.user.findFirst({
+      where: { role: targetRole, actif: true }
+    });
+    
+    const duplicate = await prisma.tache.findFirst({
+      where: { dossier_id: dossierId, titre: title, archive: false }
+    });
+    
+    if (!duplicate) {
+      await prisma.tache.create({
+        data: {
+          dossier_id: dossierId,
+          titre: title,
+          observations: description,
+          intervenant_id: targetUser ? targetUser.id : null,
+          etat: "EN_COURS",
+          deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) // 2 jours
+        }
+      });
+      console.log(`[AUTO-TASK] Created task "${title}" assigned to role "${targetRole}"`);
+    }
+  } catch (err) {
+    console.error("[AUTO-TASK] Failed to create automatic task:", err);
+  }
+}
+
 // POST /bons/provisoir - Créer un Bon Provisoir
 router.post("/bons/provisoir", requireAuth, async (req: any, res: any) => {
   try {
@@ -107,6 +136,9 @@ router.post("/bons/provisoir", requireAuth, async (req: any, res: any) => {
 
     await logActivity(req.session.userId, "BON_PROVISOIR_CREE", "BonProvisoir", bon.id);
     await notify("direction", "Nouveau Bon Provisoir créé", `Le bon provisoire ${numero} a été créé par ${user.nom} pour le dossier ${dossier.numero}.`);
+
+    // Gérer la tâche pour que la Direction puisse approuver/viser le bon
+    await createAutoTask(dId, `✍️ Visa requis - Bon Provisoire ${numero}`, `Le bon provisoire ${numero} (${computedTotal.toLocaleString('fr-FR')} F) pour '${objet}' requiert vos visas de conformité directionnelle avant décaissement.`, "direction");
 
     req.session.success_msg = `Bon Provisoire ${numero} émis avec succès (Total : ${computedTotal.toLocaleString('fr-FR')} F).`;
     res.redirect(`/dossiers/${dId}`);
@@ -201,6 +233,25 @@ router.patch("/bons/provisoir/:id/approuver", requireAuth, async (req: any, res:
       where: { id: bon.dossier_id },
       data: { pipeline_status: "BON_REEL" }
     });
+
+    try {
+      // Mark cashier payment task as completed
+      await prisma.tache.updateMany({
+        where: { dossier_id: bon.dossier_id, titre: `💵 Décaissement - Bon Provisoire ${bon.numero}`, archive: false },
+        data: { etat: "FAIT" }
+      });
+      
+      // Create operational task for acconage/enlevement to submit justifying Bon Réel
+      const operationalRole = bon.service || "acconage";
+      await createAutoTask(
+        bon.dossier_id,
+        `🧾 Régularisation - Bon Provisoire ${bon.numero}`,
+        `Le bon provisoire ${bon.numero} a été décaissé par la Caisse. Veuillez rassembler vos reçus de dépenses réelles sur le terrain et soumettre le Bon Réel pour finaliser la justification comptable du dossier.`,
+        operationalRole
+      );
+    } catch (tError) {
+      console.error("Erreur mise à jour tâches lors du décaissement/approbation :", tError);
+    }
 
     await logActivity(req.session.userId, "BON_PROVISOIR_APPROUVE", "BonProvisoir", bonId);
 
@@ -332,6 +383,16 @@ router.post("/bons/reel", requireAuth, async (req: any, res: any) => {
       data: { pipeline_status: "FACTURATION" }
     });
 
+    try {
+      // Mark operational justification task as completed
+      await prisma.tache.updateMany({
+        where: { dossier_id: bonProvisoir.dossier_id, titre: `🧾 Régularisation - Bon Provisoire ${bonProvisoir.numero}`, archive: false },
+        data: { etat: "FAIT" }
+      });
+    } catch (tError) {
+      console.error("Erreur marquage tâche régularisation complétée :", tError);
+    }
+
     await logActivity(req.session.userId, "BON_REEL_SOUMIS", "BonReel", bonReel.id);
     await notify("finances", "Justification de Bon soumis (Bon Réel)", `Un bon réel a été soumis pour le bon provisoire ${bonProvisoir.numero}. Écart : ${ecart} F.`);
 
@@ -453,6 +514,21 @@ router.post("/bons/provisoir/:id/tick", requireAuth, async (req: any, res: any) 
     // Check if ALL 5 ticks are now true
     const allApproved = updatedBon.tick_pdg && updatedBon.tick_dg && updatedBon.tick_dga && updatedBon.tick_daf && updatedBon.tick_audit;
     
+    if (allApproved) {
+      try {
+        // Complete current direction visa task
+        await prisma.tache.updateMany({
+          where: { dossier_id: updatedBon.dossier_id, titre: `✍️ Visa requis - Bon Provisoire ${updatedBon.numero}`, archive: false },
+          data: { etat: "FAIT" }
+        });
+        
+        // Create new cashier decaissement task
+        await createAutoTask(updatedBon.dossier_id, `💵 Décaissement - Bon Provisoire ${updatedBon.numero}`, `Tous les visas obligatoires de Direction ont été obtenus. Ce bon est désormais prêt pour décaissement de fonds physiques à la Caisse.`, "agent_payeur");
+      } catch (tError) {
+        console.error("Erreur mise à jour tâches lors de l'approbation globale :", tError);
+      }
+    }
+
     await logActivity(
       req.session.userId, 
       `VISA_${tick.toUpperCase()}_${newValue ? "APPLIQUE" : "RETIRE"}`, 
@@ -531,7 +607,7 @@ router.get("/bons/:id/pdf", requireAuth, async (req: any, res: any) => {
     doc.pipe(res);
 
     // Header
-    doc.fillColor("#0F172A").fontSize(18).text("BANA / YM-TRANSIT ERP", { align: "center" });
+    doc.fillColor("#0F172A").fontSize(18).text("YM-TRANSIT ERP", { align: "center" });
     doc.fontSize(10).fillColor("#475569").text("Transit & Douane • Cameroun Port Autonome de Douala", { align: "center" });
     doc.moveDown(1.5);
 

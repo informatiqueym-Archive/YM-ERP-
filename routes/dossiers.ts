@@ -650,6 +650,35 @@ router.post("/dossiers/:id/taches/:tacheId/modifier", requireAuth, async (req: a
   }
 });
 
+// Helper pour créer automatiquement une tâche Kanban lors d'un transition de flux
+async function createAutoTask(dossierId: number, title: string, description: string, targetRole: string) {
+  try {
+    const targetUser = await prisma.user.findFirst({
+      where: { role: targetRole, actif: true }
+    });
+    
+    const duplicate = await prisma.tache.findFirst({
+      where: { dossier_id: dossierId, titre: title, archive: false }
+    });
+    
+    if (!duplicate) {
+      await prisma.tache.create({
+        data: {
+          dossier_id: dossierId,
+          titre: title,
+          observations: description,
+          intervenant_id: targetUser ? targetUser.id : null,
+          etat: "EN_COURS",
+          deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000) // 2 jours
+        }
+      });
+      console.log(`[AUTO-TASK] Created task "${title}" assigned to role "${targetRole}"`);
+    }
+  } catch (err) {
+    console.error("[AUTO-TASK] Failed to create automatic task:", err);
+  }
+}
+
 // POST /dossiers/:id/pipeline/valider - Soumettre pour Validation (Secrétariat, Super Admin)
 router.post("/dossiers/:id/pipeline/valider", requireAuth, async (req: any, res: any) => {
   try {
@@ -660,12 +689,16 @@ router.post("/dossiers/:id/pipeline/valider", requireAuth, async (req: any, res:
       return res.redirect(`/dossiers/${id}`);
     }
 
-    await prisma.dossier.update({
+    const dossier = await prisma.dossier.update({
       where: { id },
       data: { pipeline_status: "VALIDATION" }
     });
 
     await logActivity(req.session.userId, "DOSSIER_SOUMIS_VALIDATION", "Dossier", id);
+    
+    // Création d'une tâche de validation pour le pôle conformité / validation
+    await createAutoTask(id, `📁 Contrôle de Conformité - Dossier ${dossier.numero}`, `Le dossier ${dossier.numero} est prêt pour votre visa de validation réglementaire.`, "validation_role");
+
     req.session.success_msg = "Dossier soumis pour validation avec succès.";
     res.redirect(`/dossiers/${id}`);
   } catch (error) {
@@ -684,12 +717,16 @@ router.post("/dossiers/:id/pipeline/approuver", requireAuth, async (req: any, re
       return res.redirect(`/dossiers/${id}`);
     }
 
-    await prisma.dossier.update({
+    const dossier = await prisma.dossier.update({
       where: { id },
       data: { pipeline_status: "EN_TRAITEMENT" }
     });
 
     await logActivity(req.session.userId, "DOSSIER_VALIDATION_APPROUVEE", "Dossier", id);
+    
+    // Création d'une tâche d'acconage/Transit
+    await createAutoTask(id, `🚢 Transit & Douane - Dossier ${dossier.numero}`, `Le dossier a été validé ! Veuillez initier les formalités d'acconage/enlèvement physique et émettre les Bons Provisoires correspondants.`, "acconage");
+
     req.session.success_msg = "Validation approuvée. Le dossier est maintenant en traitement.";
     res.redirect(`/dossiers/${id}`);
   } catch (error) {
@@ -732,12 +769,16 @@ router.post("/dossiers/:id/pipeline/facturer", requireAuth, async (req: any, res
       return res.redirect(`/dossiers/${id}`);
     }
 
-    await prisma.dossier.update({
+    const dossier = await prisma.dossier.update({
       where: { id },
       data: { pipeline_status: "CLOTURE" }
     });
 
     await logActivity(req.session.userId, "DOSSIER_FACTURATION_TERMINEE", "Dossier", id);
+    
+    // Création d'une tâche de clôture financière
+    await createAutoTask(id, `💰 Clôture financière - Dossier ${dossier.numero}`, `Le dossier est marqué comme facturé. Veuillez procéder aux vérifications comptables et à sa clôture d'archive définitive.`, "comptable_ops");
+
     req.session.success_msg = "Dossier marqué comme facturé. En attente de clôture définitive.";
     res.redirect(`/dossiers/${id}`);
   } catch (error) {

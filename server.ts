@@ -890,7 +890,7 @@ app.get("/logs", requireAuth, requireSuperAdmin, async (req: any, res: any) => {
   }
 });
 
-// Routine de seeding des comptes de rôles BANA ERP
+// Routine de seeding des comptes de rôles YM-TRANSIT ERP
 async function seedAccounts() {
   try {
     const seedData = [
@@ -900,7 +900,7 @@ async function seedAccounts() {
         email: "acconage@ym-transit.cm",
         password: "acconage123",
         role: "acconage",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Service Enlevement",
@@ -908,7 +908,7 @@ async function seedAccounts() {
         email: "enlevement@ym-transit.cm",
         password: "enlevement123",
         role: "enlevement",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Directeur",
@@ -916,7 +916,7 @@ async function seedAccounts() {
         email: "direction@ym-transit.cm",
         password: "direction123",
         role: "direction",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Agent Payeur",
@@ -924,7 +924,7 @@ async function seedAccounts() {
         email: "caisse@ym-transit.cm",
         password: "caisse123",
         role: "agent_payeur",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Directeur Financier",
@@ -932,7 +932,7 @@ async function seedAccounts() {
         email: "finances@ym-transit.cm",
         password: "finances123",
         role: "finances",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Comptable Operations",
@@ -940,7 +940,7 @@ async function seedAccounts() {
         email: "compta_ops@ym-transit.cm",
         password: "comptaops123",
         role: "comptable_ops",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Yannick Abega",
@@ -948,7 +948,7 @@ async function seedAccounts() {
         email: "admin@ym-transit.cm",
         password: "admin123",
         role: "super_admin",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Claire Ngo Ntamack",
@@ -956,7 +956,7 @@ async function seedAccounts() {
         email: "compta@ym-transit.cm",
         password: "compta123",
         role: "comptable",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Saliou Ndoumbe",
@@ -964,7 +964,7 @@ async function seedAccounts() {
         email: "commercial@ym-transit.cm",
         password: "commercial123",
         role: "commercial",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Mamadou Bello",
@@ -972,7 +972,7 @@ async function seedAccounts() {
         email: "transit@ym-transit.cm",
         password: "transit123",
         role: "operationnel",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Antoine Ndzana",
@@ -980,7 +980,7 @@ async function seedAccounts() {
         email: "magasin@ym-transit.cm",
         password: "magasin123",
         role: "magasinier",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       },
       {
         nom: "Auditeur Externe",
@@ -988,7 +988,7 @@ async function seedAccounts() {
         email: "lecture@ym-transit.cm",
         password: "lecture123",
         role: "lecture",
-        societe: "BANA Logistics"
+        societe: "YM-TRANSIT"
       }
     ];
 

@@ -208,7 +208,7 @@
           </li>
         <% } %>
 
-        <% if (['super_admin', 'commercial', 'operationnel', 'lecture', 'secretariat', 'validation_role', 'guce', 'acconage', 'enlevement', 'finances', 'comptable_ops'].includes(user.role)) { %>
+        <% if (['super_admin', 'commercial', 'operationnel', 'lecture', 'secretariat', 'validation_role', 'guce', 'acconage', 'enlevement', 'finances', 'comptable_ops', 'direction', 'agent_payeur'].includes(user.role)) { %>
           <li class="<%= currentPath === '/dossiers' || (currentPath.startsWith('/dossiers') && !currentPath.includes('/archives')) ? 'active' : '' %>">
             <a href="/dossiers">
               <i class="bi bi-folder-fill"></i>
@@ -217,7 +217,7 @@
           </li>
         <% } %>
 
-        <% if (['super_admin', 'comptable', 'direction', 'comptable_ops'].includes(user.role)) { %>
+        <% if (['super_admin', 'comptable', 'direction', 'comptable_ops', 'commercial', 'operationnel', 'lecture', 'secretariat', 'validation_role', 'guce', 'acconage', 'enlevement', 'finances', 'agent_payeur'].includes(user.role)) { %>
           <li class="<%= currentPath.startsWith('/archives') || currentPath.startsWith('/dossiers/archives') ? 'active' : '' %>">
             <a href="/archives">
               <i class="bi bi-archive-fill"></i>

@@ -165,7 +165,7 @@ router.post("/login", async (req: any, res: any) => {
     // Succès de l'authentification
     req.session.userId = updatedUser.id;
     req.session.user = updatedUser;
-    req.session.success_msg = `Bienvenue sur BANA ERP, ${updatedUser.nom} !`;
+    req.session.success_msg = `Bienvenue sur YM-TRANSIT ERP, ${updatedUser.nom} !`;
     
     await logActivity(updatedUser.id, "CONNEXION", "User", updatedUser.id);
 

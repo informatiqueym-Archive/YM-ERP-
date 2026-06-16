@@ -5,22 +5,22 @@ const prisma = new PrismaClient();
 // Mappage des rôles et des modules autorisés
 export const ROLES_PERMISSIONS: { [key: string]: string[] } = {
   super_admin: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "rh"],
-  comptable: ["clients", "facturation", "stock", "comptabilite", "achats", "analytics"],
+  comptable: ["clients", "facturation", "stock", "comptabilite", "achats", "analytics", "dossiers"],
   commercial: ["clients", "dossiers", "taches", "facturation", "analytics"],
   operationnel: ["clients", "dossiers", "taches"],
-  magasinier: ["stock", "achats"],
+  magasinier: ["stock", "achats", "dossiers"],
   rh: ["rh"],
   lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"],
   
-  secretariat: ["dashboard", "dossiers", "clients"],
-  validation_role: ["dashboard", "dossiers"],
-  guce: ["dashboard", "dossiers"],
-  acconage: ["dashboard", "dossiers", "bons"],
-  enlevement: ["dashboard", "dossiers", "bons"],
-  direction: ["dashboard", "bons", "analytics"],
-  agent_payeur: ["dashboard", "bons"],
-  finances: ["dashboard", "documents", "facturation", "dossiers", "clients"],
-  comptable_ops: ["dashboard", "documents", "facturation", "dossiers", "accounting", "comptabilite", "reports"]
+  secretariat: ["dashboard", "dossiers", "clients", "taches"],
+  validation_role: ["dashboard", "dossiers", "taches"],
+  guce: ["dashboard", "dossiers", "taches"],
+  acconage: ["dashboard", "dossiers", "bons", "taches"],
+  enlevement: ["dashboard", "dossiers", "bons", "taches"],
+  direction: ["dashboard", "bons", "analytics", "dossiers", "taches"],
+  agent_payeur: ["dashboard", "bons", "dossiers", "taches"],
+  finances: ["dashboard", "documents", "facturation", "dossiers", "clients", "taches"],
+  comptable_ops: ["dashboard", "documents", "facturation", "dossiers", "accounting", "comptabilite", "reports", "taches"]
 };
 
 // Middleware d'authentification obligatoire et de contrôle d'accès global (RBAC)
