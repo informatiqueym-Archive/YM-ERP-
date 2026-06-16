@@ -181,6 +181,35 @@
   <%- JSON.stringify(stocks) %>
 </script>
 
+<% if (locals.preselectedDossier) { %>
+  <script type="application/json" id="preselectedDossierData">
+    <%- JSON.stringify({
+      id: preselectedDossier.id,
+      clientId: preselectedDossier.client_id,
+      numero: preselectedDossier.numero,
+      items: preselectedDossier.bons_provisoir && preselectedDossier.bons_provisoir.length > 0
+        ? preselectedDossier.bons_provisoir.flatMap(bp => {
+            if (bp.bon_reel) {
+              if (bp.bon_reel.items_json) {
+                try {
+                  return JSON.parse(bp.bon_reel.items_json).map(it => ({
+                    description: `Débours: ${it.designation} (Dossier N° ${preselectedDossier.numero})`,
+                    price: it.montant
+                  }));
+                } catch(e) {}
+              }
+              return [{
+                description: `Débours: ${bp.objet} [Bon Réel N° ${bp.numero}] (Dossier N° ${preselectedDossier.numero})`,
+                price: bp.bon_reel.montant_reel
+              }];
+            }
+            return [];
+          })
+        : []
+    }) %>
+  </script>
+<% } %>
+
 <script>
   document.addEventListener("DOMContentLoaded", function() {
     // Parser les articles de stock
@@ -225,7 +254,7 @@
     let lineIndex = 0;
 
     // Fonction d'ajout de ligne
-    function addLineRow() {
+    function addLineRow(initDesc = "", initPrice = "0", initTax = "TVA_19_25") {
       const tr = document.createElement("tr");
       tr.id = `line-row-${lineIndex}`;
       tr.className = "line-item-row";
@@ -241,18 +270,18 @@
           <select class="form-select mb-1 article-select form-select-sm">
             ${stockOptions}
           </select>
-          <input type="text" class="form-control form-control-sm item-desc" placeholder="Ou décrivez la prestation de transit..." required>
+          <input type="text" class="form-control form-control-sm item-desc" placeholder="Ou décrivez la prestation de transit..." value="${initDesc}" required>
         </td>
         <td class="align-top">
-          <input type="number" class="form-control form-control-sm font-monospace text-end item-price" value="0" min="0" required style="width: 130px;">
+          <input type="number" class="form-control form-control-sm font-monospace text-end item-price" value="${initPrice}" min="0" required style="width: 130px;">
         </td>
         <td class="align-top">
           <input type="number" class="form-control form-control-sm text-center item-qty" value="1" min="1" required style="width: 70px;">
         </td>
         <td class="align-top">
           <select class="form-select form-select-sm item-tax">
-            <option value="TVA_19_25" selected>TVA Complète (19.25%)</option>
-            <option value="TVA_0">Exonéré (0% / Débours)</option>
+            <option value="TVA_19_25" ${initTax === "TVA_19_25" ? "selected" : ""}>TVA Complète (19.25%)</option>
+            <option value="TVA_0" ${initTax === "TVA_0" ? "selected" : ""}>Exonéré (0% / Débours)</option>
           </select>
         </td>
         <td class="fw-bold text-dark font-monospace text-end align-top pt-2">
@@ -312,8 +341,8 @@
       calculateTotals();
     }
 
-    addLineBtn.addEventListener("click", addLineRow);
-    emptyStateAddBtn.addEventListener("click", addLineRow);
+    addLineBtn.addEventListener("click", () => addLineRow("", "0", "TVA_19_25"));
+    emptyStateAddBtn.addEventListener("click", () => addLineRow("", "0", "TVA_19_25"));
 
     // Fonction de calcul en temps réel des totaux
     function calculateTotals() {
@@ -365,8 +394,34 @@
     discountField.addEventListener("input", calculateTotals);
     advanceField.addEventListener("input", calculateTotals);
 
-    // Ajouter une première ligne par défaut
-    addLineRow();
+    // Initialisation intelligente : pré-remplissage ou ligne blanche par défaut
+    const preselectedDataElement = document.getElementById("preselectedDossierData");
+    if (preselectedDataElement) {
+      try {
+        const predata = JSON.parse(preselectedDataElement.textContent);
+        if (predata && predata.clientId) {
+          clientSelect.value = predata.clientId;
+          // Déclencher l'événement pour charger les informations du client dans le bandeau
+          clientSelect.dispatchEvent(new Event("change"));
+          
+          if (predata.items && predata.items.length > 0) {
+            predata.items.forEach(item => {
+              addLineRow(item.description, item.price, "TVA_0"); // Les débours sont exonérés de TVA
+            });
+          } else {
+            addLineRow("", "0", "TVA_19_25");
+          }
+        } else {
+          addLineRow("", "0", "TVA_19_25");
+        }
+      } catch (e) {
+        console.error("Erreur d'import des débours du bon réel :", e);
+        addLineRow("", "0", "TVA_19_25");
+      }
+    } else {
+      // Ajouter une première ligne par défaut
+      addLineRow("", "0", "TVA_19_25");
+    }
 
     // Soumission du formulaire
     const invoiceForm = document.getElementById("invoiceForm");

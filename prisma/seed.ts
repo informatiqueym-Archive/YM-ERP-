@@ -27,6 +27,12 @@ async function main() {
   const adminHash = await bcryptjs.hash("admin123", 10);
   const transitHash = await bcryptjs.hash("transit123", 10);
   const comptaHash = await bcryptjs.hash("compta123", 10);
+  const acconageHash = await bcryptjs.hash("acconage123", 10);
+  const enlevementHash = await bcryptjs.hash("enlevement123", 10);
+  const directionHash = await bcryptjs.hash("direction123", 10);
+  const caisseHash = await bcryptjs.hash("caisse123", 10);
+  const financesHash = await bcryptjs.hash("finances123", 10);
+  const comptaOpsHash = await bcryptjs.hash("comptaops123", 10);
 
   const admin = await prisma.user.create({
     data: {
@@ -56,6 +62,72 @@ async function main() {
       email: "compta@ym-transit.cm",
       password: comptaHash,
       role: "comptable",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Service Acconage",
+      email: "acconage@ym-transit.cm",
+      password: acconageHash,
+      role: "acconage",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Service Enlevement",
+      email: "enlevement@ym-transit.cm",
+      password: enlevementHash,
+      role: "enlevement",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Directeur",
+      email: "direction@ym-transit.cm",
+      password: directionHash,
+      role: "direction",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Agent Payeur",
+      email: "caisse@ym-transit.cm",
+      password: caisseHash,
+      role: "agent_payeur",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Directeur Financier",
+      email: "finances@ym-transit.cm",
+      password: financesHash,
+      role: "finances",
+      societe: "YM-TRANSIT Transit & Logistics Ltd",
+      actif: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      nom: "Comptable Operations",
+      email: "compta_ops@ym-transit.cm",
+      password: comptaOpsHash,
+      role: "comptable_ops",
       societe: "YM-TRANSIT Transit & Logistics Ltd",
       actif: true,
     },

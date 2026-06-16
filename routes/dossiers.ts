@@ -100,6 +100,35 @@ router.get("/dossiers", requireAuth, async (req: any, res: any) => {
   }
 });
 
+// GET /archives & GET /dossiers/archives - Liste des dossiers archivés définitivement
+const handleGetArchives = async (req: any, res: any) => {
+  try {
+    const dossiers = await prisma.dossier.findMany({
+      where: {
+        pipeline_status: "ARCHIVE"
+      },
+      include: {
+        client: true,
+        taches: true
+      },
+      orderBy: {
+        archived_at: "desc"
+      }
+    });
+
+    res.render("dossiers/archives", {
+      dossiers,
+      title: "Archives des Dossiers Logistiques",
+    });
+  } catch (error) {
+    console.error("Erreur listing archives :", error);
+    res.status(500).send("Erreur lors de la récupération des archives d'expédition.");
+  }
+};
+
+router.get("/archives", requireAuth, handleGetArchives);
+router.get("/dossiers/archives", requireAuth, handleGetArchives);
+
 // GET /dossiers/create - Formulaire de création de dossiers
 router.get("/dossiers/create", requireAuth, async (req: any, res: any) => {
   try {
@@ -117,7 +146,7 @@ router.get("/dossiers/create", requireAuth, async (req: any, res: any) => {
 // POST /dossiers/create - Enregistrement d'un dossier (et route compatible /dossiers/new)
 const handleDossierCreation = async (req: any, res: any) => {
   try {
-    const { client_id, numero, port, nature, etat, bl, contenu, droits_douane, validation, valeur_douane } = req.body;
+    const { client_id, numero, port, nature, etat, bl, contenu, droits_douane, validation, valeur_douane, representant } = req.body;
 
     if (!client_id || !numero || !port || !nature || !bl) {
       req.session.error_msg = "Veuillez remplir correctement tous les champs obligatoires (*), y compris le N° de BL.";
@@ -152,6 +181,8 @@ const handleDossierCreation = async (req: any, res: any) => {
         droits_douane: parsedDroits,
         validation: validationBool,
         valeur_douane: parsedValeur,
+        representant: representant ? representant.trim() : null,
+        pipeline_status: "CREE"
       },
     });
 
@@ -178,41 +209,79 @@ router.post("/dossiers/new", requireAuth, handleDossierCreation);
 router.post("/dossiers/:id/update-custom", requireAuth, async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
-    const { client_id, bl, contenu, droits_douane, validation, valeur_douane } = req.body;
-
-    const data: any = {};
-    if (client_id) {
-      data.client_id = parseInt(client_id);
-    }
-    if (bl !== undefined) {
-      data.bl = bl ? bl.trim() : "";
-    }
-    if (contenu !== undefined) {
-      data.contenu = contenu ? contenu.trim() : null;
-    }
-    if (droits_douane !== undefined) {
-      data.droits_douane = droits_douane ? parseFloat(droits_douane) : null;
-    }
-    if (valeur_douane !== undefined) {
-      data.valeur_douane = valeur_douane ? parseFloat(valeur_douane) : null;
-    }
+    const dossier = await prisma.dossier.findUnique({ where: { id } });
     
-    // Si la checkbox n'est pas envoyée (ou vaut undefined), cela signifie qu'elle est désactivée
-    data.validation = (validation === 'true' || validation === 'on' || validation === true);
+    if (!dossier) {
+      req.session.error_msg = "Dossier introuvable.";
+      return res.redirect("/dossiers");
+    }
 
-    await prisma.dossier.update({
-      where: { id },
-      data,
-    });
+    const { client_id, bl, contenu, droits_douane, validation, valeur_douane } = req.body;
+    const data: any = {};
 
-    await logActivity(
-      req.session.userId,
-      "MISE_A_JOUR_DETAILED_DOUANE",
-      "Dossier",
-      id
-    );
+    // Groupe 1 : Informations d'origine/Création (client_id, bl, contenu)
+    const wantsToChangeGroup1 = 
+      (client_id !== undefined && parseInt(client_id) !== dossier.client_id) ||
+      (bl !== undefined && bl.trim() !== (dossier.bl || "")) ||
+      (contenu !== undefined && (contenu ? contenu.trim() : "") !== (dossier.contenu || ""));
 
-    req.session.success_msg = "Informations logistiques et douanières actualisées.";
+    if (wantsToChangeGroup1) {
+      if (dossier.pipeline_status !== "CREE") {
+        req.session.error_msg = "Modification refusée : Les champs initiaux (BL, Client, Contenu) sont verrouillés. Veuillez soumettre une Demande de Correction (Retour arrière) pour les modifier.";
+        return res.redirect(`/dossiers/${id}`);
+      }
+      if (client_id) {
+        data.client_id = parseInt(client_id);
+      }
+      if (bl !== undefined) {
+        data.bl = bl ? bl.trim() : "";
+      }
+      if (contenu !== undefined) {
+        data.contenu = contenu ? contenu.trim() : null;
+      }
+    }
+
+    // Groupe 2 : Informations de validation douanière (droits_douane, valeur_douane, validation)
+    const parsedDroits = droits_douane !== undefined ? (droits_douane ? parseFloat(droits_douane) : null) : undefined;
+    const parsedValeur = valeur_douane !== undefined ? (valeur_douane ? parseFloat(valeur_douane) : null) : undefined;
+    const isValChecked = (validation === 'true' || validation === 'on' || validation === true);
+
+    const wantsToChangeGroup2 =
+      (parsedDroits !== undefined && parsedDroits !== dossier.droits_douane) ||
+      (parsedValeur !== undefined && parsedValeur !== dossier.valeur_douane) ||
+      (isValChecked !== dossier.validation);
+
+    if (wantsToChangeGroup2) {
+      if (dossier.pipeline_status !== "VALIDATION") {
+        req.session.error_msg = "Modification refusée : Les informations douanières sont validées et verrouillées. Veuillez soumettre une Demande de Correction (Retour arrière) pour les modifier.";
+        return res.redirect(`/dossiers/${id}`);
+      }
+      if (parsedDroits !== undefined) {
+        data.droits_douane = parsedDroits;
+      }
+      if (parsedValeur !== undefined) {
+        data.valeur_douane = parsedValeur;
+      }
+      data.validation = isValChecked;
+    }
+
+    if (Object.keys(data).length > 0) {
+      await prisma.dossier.update({
+        where: { id },
+        data,
+      });
+
+      await logActivity(
+        req.session.userId,
+        "MISE_A_JOUR_DETAILED_DOUANE",
+        "Dossier",
+        id
+      );
+      req.session.success_msg = "Informations logistiques et douanières actualisées.";
+    } else {
+      req.session.success_msg = "Aucun changement détecté ou modifications autorisées requises.";
+    }
+
     res.redirect(`/dossiers/${id}`);
   } catch (error) {
     console.error("Erreur mise à jour infos douanières :", error);
@@ -239,6 +308,22 @@ router.get("/dossiers/:id", requireAuth, async (req: any, res: any) => {
             created_at: "asc",
           },
         },
+        bons_provisoir: {
+          include: {
+            demandeur: { select: { nom: true, prenom: true, role: true } },
+            approver: { select: { nom: true, prenom: true } },
+            bon_reel: {
+              include: {
+                soumis_par: { select: { nom: true, prenom: true } },
+                confirme_par: { select: { nom: true, prenom: true } }
+              }
+            }
+          },
+          orderBy: {
+            created_at: "desc"
+          }
+        },
+        bons_reel: true
       },
     });
 
@@ -562,6 +647,202 @@ router.post("/dossiers/:id/taches/:tacheId/modifier", requireAuth, async (req: a
   } catch (error) {
     console.error("Erreur modif tâche dossier :", error);
     res.status(500).send("Erreur de traitement.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/valider - Soumettre pour Validation (Secrétariat, Super Admin)
+router.post("/dossiers/:id/pipeline/valider", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = req.session.user;
+    if (!["secretariat", "super_admin"].includes(user.role)) {
+      req.session.error_msg = "Seul le secrétariat ou l'administrateur peut soumettre pour validation.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    await prisma.dossier.update({
+      where: { id },
+      data: { pipeline_status: "VALIDATION" }
+    });
+
+    await logActivity(req.session.userId, "DOSSIER_SOUMIS_VALIDATION", "Dossier", id);
+    req.session.success_msg = "Dossier soumis pour validation avec succès.";
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur validation pipeline status :", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/approuver - Approuver Validation (Validation_role, Super Admin)
+router.post("/dossiers/:id/pipeline/approuver", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = req.session.user;
+    if (!["validation_role", "super_admin"].includes(user.role)) {
+      req.session.error_msg = "Accès refusé : rôle non autorisé.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    await prisma.dossier.update({
+      where: { id },
+      data: { pipeline_status: "EN_TRAITEMENT" }
+    });
+
+    await logActivity(req.session.userId, "DOSSIER_VALIDATION_APPROUVEE", "Dossier", id);
+    req.session.success_msg = "Validation approuvée. Le dossier est maintenant en traitement.";
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur approuver pipeline status :", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/rejeter - Rejeter Validation (Validation_role, Super Admin)
+router.post("/dossiers/:id/pipeline/rejeter", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = req.session.user;
+    if (!["validation_role", "super_admin"].includes(user.role)) {
+      req.session.error_msg = "Accès refusé : rôle non autorisé.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    await prisma.dossier.update({
+      where: { id },
+      data: { pipeline_status: "CREE" }
+    });
+
+    await logActivity(req.session.userId, "DOSSIER_VALIDATION_REJETEE", "Dossier", id);
+    req.session.success_msg = "Validation rejetée. Le dossier retourne au statut créé.";
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur rejeter pipeline status :", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/facturer - Facturer (Comptable, Commercial, Super Admin)
+router.post("/dossiers/:id/pipeline/facturer", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = req.session.user;
+    if (!["comptable", "commercial", "super_admin", "comptable_ops", "finances"].includes(user.role)) {
+      req.session.error_msg = "Accès non autorisé.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    await prisma.dossier.update({
+      where: { id },
+      data: { pipeline_status: "CLOTURE" }
+    });
+
+    await logActivity(req.session.userId, "DOSSIER_FACTURATION_TERMINEE", "Dossier", id);
+    req.session.success_msg = "Dossier marqué comme facturé. En attente de clôture définitive.";
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur facturer pipeline status :", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/cloturer - Clôturer et Archiver (Comptable_ops, Super Admin)
+router.post("/dossiers/:id/pipeline/cloturer", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const user = req.session.user;
+    if (!["comptable_ops", "super_admin"].includes(user.role)) {
+      req.session.error_msg = "Seul la comptabilité opérationnelle ou un administrateur peut clôturer définitivement.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    await prisma.dossier.update({
+      where: { id },
+      data: {
+        pipeline_status: "ARCHIVE",
+        archived_at: new Date()
+      }
+    });
+
+    await logActivity(req.session.userId, "DOSSIER_CLOTURE_ARCHIVE", "Dossier", id);
+    req.session.success_msg = "Le dossier a été clôturé définitivement et archivé avec succès.";
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur clôturer pipeline status :", error);
+    res.status(500).send("Erreur serveur.");
+  }
+});
+
+// POST /dossiers/:id/pipeline/retour-arriere - Demander une correction (retour à l'étape précédente)
+router.post("/dossiers/:id/pipeline/retour-arriere", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { motif } = req.body;
+    if (!motif || motif.trim() === "") {
+      req.session.error_msg = "Veuillez fournir un motif / justification pour le retour en arrière.";
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    const dossier = await prisma.dossier.findUnique({ where: { id } });
+    if (!dossier) {
+      req.session.error_msg = "Dossier introuvable.";
+      return res.redirect("/dossiers");
+    }
+
+    const currentStatus = dossier.pipeline_status;
+    const previousStatusMap: Record<string, string> = {
+      "VALIDATION": "CREE",
+      "EN_TRAITEMENT": "VALIDATION",
+      "BON_PROVISOIR": "EN_TRAITEMENT",
+      "BON_REEL": "EN_TRAITEMENT",
+      "FACTURATION": "BON_REEL",
+      "CLOTURE": "FACTURATION",
+      "ARCHIVE": "CLOTURE"
+    };
+
+    const prevStatus = previousStatusMap[currentStatus];
+    if (!prevStatus) {
+      req.session.error_msg = `Impossible de reculer depuis le statut de création actuel (${currentStatus}).`;
+      return res.redirect(`/dossiers/${id}`);
+    }
+
+    // Move status back
+    await prisma.dossier.update({
+      where: { id },
+      data: { pipeline_status: prevStatus }
+    });
+
+    // Si on recule depuis BON_PROVISOIR, rejeter le bon provisoire en attente
+    if (currentStatus === "BON_PROVISOIR") {
+      await prisma.bonProvisoir.updateMany({
+        where: { dossier_id: id, etat: "EN_ATTENTE" },
+        data: { etat: "REJETE", motif_rejet: motif }
+      });
+    }
+
+    // Record activity with the custom motif
+    await logActivity(
+      req.session.userId,
+      `RETOUR_ETAPE_${prevStatus}_MOTIF`,
+      "Dossier",
+      `${id} - Motif: ${motif.trim()}`
+    );
+
+    // Créer une tâche automatique de correction
+    await prisma.tache.create({
+      data: {
+        dossier_id: id,
+        titre: `[Demande de modification] Retour à ${prevStatus} : ${motif.trim()}`,
+        etat: "A_FAIRE"
+      }
+    });
+
+    req.session.success_msg = `Dossier renvoyé à l'étape précédente (${prevStatus}) pour modifications.`;
+    res.redirect(`/dossiers/${id}`);
+  } catch (error) {
+    console.error("Erreur de retour arrière pipeline :", error);
+    req.session.error_msg = "Erreur serveur lors de la demande de modification.";
+    res.redirect(`/dossiers/${req.params.id}`);
   }
 });
 

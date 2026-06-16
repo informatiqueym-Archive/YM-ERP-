@@ -108,20 +108,29 @@ router.post("/login", async (req: any, res: any) => {
       return res.redirect("/login");
     }
 
-    // Recherche de l'utilisateur par nom (username), email ou "admin" de test (insensible à la casse)
+    // Recherche de l'utilisateur de manière robuste et insensible à la casse
     const normalizedNom = nom.trim().toLowerCase();
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { nom: { equals: nom.trim() } },
-          { email: { equals: nom.trim() } },
-          { email: { equals: normalizedNom } },
-          ...(normalizedNom === "admin" ? [{ email: { equals: "admin@ym-transit.cm" } }] : []),
-          ...(normalizedNom === "yannick abega" ? [{ email: { equals: "admin@ym-transit.cm" } }] : []),
-          ...(normalizedNom === "mamadou bello" ? [{ email: { equals: "transit@ym-transit.cm" } }] : []),
-          ...(normalizedNom === "claire ngo ntamack" ? [{ email: { equals: "compta@ym-transit.cm" } }] : [])
-        ]
-      }
+    const allUsers = await prisma.user.findMany();
+    const user = allUsers.find(u => {
+      const dbEmail = u.email.trim().toLowerCase();
+      const dbNom = u.nom.trim().toLowerCase();
+      const dbPrenom = u.prenom ? u.prenom.trim().toLowerCase() : "";
+      const fullNameSlash = `${dbPrenom} ${dbNom}`.trim();
+      const fullNameSlashRev = `${dbNom} ${dbPrenom}`.trim();
+      
+      return (
+        dbEmail === normalizedNom ||
+        dbNom === normalizedNom ||
+        fullNameSlash === normalizedNom ||
+        fullNameSlashRev === normalizedNom ||
+        (normalizedNom === "admin" && dbEmail === "admin@ym-transit.cm") ||
+        (normalizedNom === "transit" && dbEmail === "transit@ym-transit.cm") ||
+        (normalizedNom === "compta" && dbEmail === "compta@ym-transit.cm") ||
+        (normalizedNom === "caisse" && u.role === "agent_payeur") ||
+        (normalizedNom === "direction" && u.role === "direction") ||
+        (normalizedNom === "acconage" && u.role === "acconage") ||
+        (normalizedNom === "enlevement" && u.role === "enlevement")
+      );
     });
 
     if (!user) {

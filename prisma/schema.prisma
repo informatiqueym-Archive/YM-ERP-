@@ -24,6 +24,10 @@ model User {
   taches           Tache[]
   comments         TacheComment[]
   ecritures        EcritureComptable[]
+  bons_demandes    BonProvisoir[] @relation("BonDemandeur")
+  bons_approuves   BonProvisoir[] @relation("BonApprover")
+  bons_reel_soumis BonReel[]      @relation("BonReelSoumis")
+  bons_reel_confirmes BonReel[]   @relation("BonReelConfirme")
 }
 
 model Client {
@@ -50,9 +54,14 @@ model Dossier {
   droits_douane Float?
   validation    Boolean  @default(false)
   valeur_douane Float?
-  created_at    DateTime @default(now())
-  client        Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  taches        Tache[]
+  created_at      DateTime @default(now())
+  representant    String?  @default("")
+  pipeline_status String   @default("ARCHIVE")
+  archived_at     DateTime?
+  client          Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  taches          Tache[]
+  bons_provisoir  BonProvisoir[]
+  bons_reel       BonReel[]
 }
 
 model Tache {
@@ -254,5 +263,55 @@ model PaiementFournisseur {
   moyen      String
   date       DateTime @default(now())
   facture    FactureFournisseur @relation(fields:[facture_id], references:[id], onDelete: Cascade)
+}
+
+model BonProvisoir {
+  id              Int          @id @default(autoincrement())
+  numero          String       @unique
+  dossier_id      Int
+  service         String
+  demandeur_id    Int
+  objet           String
+  montant_demande Float
+  items_json      String?      // Liste des articles en format JSON stringifié: [{ designation, montant }]
+  etat            String       @default("EN_ATTENTE")
+  // Les 5 Ticks de validation de la Direction Générale / Top Management
+  tick_pdg        Boolean      @default(false)
+  tick_dg         Boolean      @default(false)
+  tick_dga        Boolean      @default(false)
+  tick_daf        Boolean      @default(false)
+  tick_audit      Boolean      @default(false)
+  tick_pdg_by     String?
+  tick_dg_by      String?
+  tick_dga_by     String?
+  tick_daf_by     String?
+  tick_audit_by   String?
+  approved_by_id  Int?
+  approved_at     DateTime?
+  motif_rejet     String?
+  created_at      DateTime     @default(now())
+  dossier         Dossier      @relation(fields:[dossier_id], references:[id])
+  demandeur       User         @relation("BonDemandeur", fields:[demandeur_id], references:[id])
+  approver        User?        @relation("BonApprover", fields:[approved_by_id], references:[id])
+  bon_reel        BonReel?
+}
+
+model BonReel {
+  id                Int          @id @default(autoincrement())
+  bon_provisoir_id  Int          @unique
+  dossier_id        Int
+  montant_provisoir Float
+  montant_reel      Float
+  ecart             Float
+  observations      String?
+  items_json        String?      // Liste des articles réels dépensés en format JSON
+  soumis_par_id     Int
+  confirme_par_id   Int?
+  confirme_at       DateTime?
+  created_at        DateTime     @default(now())
+  bon_provisoir     BonProvisoir @relation(fields:[bon_provisoir_id], references:[id])
+  dossier           Dossier      @relation(fields:[dossier_id], references:[id])
+  soumis_par        User         @relation("BonReelSoumis", fields:[soumis_par_id], references:[id])
+  confirme_par      User?        @relation("BonReelConfirme", fields:[confirme_par_id], references:[id])
 }
 

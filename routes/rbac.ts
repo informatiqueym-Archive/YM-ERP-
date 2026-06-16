@@ -10,7 +10,17 @@ export const ROLES_PERMISSIONS: { [key: string]: string[] } = {
   operationnel: ["clients", "dossiers", "taches"],
   magasinier: ["stock", "achats"],
   rh: ["rh"],
-  lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"]
+  lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"],
+  
+  secretariat: ["dashboard", "dossiers", "clients"],
+  validation_role: ["dashboard", "dossiers"],
+  guce: ["dashboard", "dossiers"],
+  acconage: ["dashboard", "dossiers", "bons"],
+  enlevement: ["dashboard", "dossiers", "bons"],
+  direction: ["dashboard", "bons", "analytics"],
+  agent_payeur: ["dashboard", "bons"],
+  finances: ["dashboard", "documents", "facturation", "dossiers", "clients"],
+  comptable_ops: ["dashboard", "documents", "facturation", "dossiers", "accounting", "comptabilite", "reports"]
 };
 
 // Middleware d'authentification obligatoire et de contrôle d'accès global (RBAC)

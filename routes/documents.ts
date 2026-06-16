@@ -35,6 +35,22 @@ router.get("/documents", requireAuth, async (req: any, res: any) => {
 // GET /documents/create - Formulaire de création dynamique d'une facture
 router.get("/documents/create", requireAuth, async (req: any, res: any) => {
   try {
+    const { dossier_id } = req.query;
+    let preselectedDossier: any = null;
+
+    if (dossier_id) {
+      preselectedDossier = await prisma.dossier.findUnique({
+        where: { id: parseInt(dossier_id) },
+        include: {
+          client: true,
+          bons_provisoir: {
+            where: { etat: "APPROUVE" },
+            include: { bon_reel: true }
+          }
+        }
+      });
+    }
+
     const [clients, stocks] = await Promise.all([
       prisma.client.findMany({ orderBy: { nom: "asc" } }),
       prisma.stock.findMany({ orderBy: { nom: "asc" } })
@@ -43,7 +59,8 @@ router.get("/documents/create", requireAuth, async (req: any, res: any) => {
     res.render("documents/create", {
       clients,
       stocks,
-      title: "Nouvelle Facture de Transit"
+      preselectedDossier,
+      title: preselectedDossier ? `Facturation de Transit pour Dossier N° ${preselectedDossier.numero}` : "Nouvelle Facture de Transit"
     });
   } catch (error) {
     console.error("Erreur d'initialisation du formulaire :", error);

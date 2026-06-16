@@ -55,17 +55,36 @@
         <div class="row mb-4">
           <div class="col-md-6 mb-3 mb-md-0">
             <label class="form-label fw-semibold">Niveau d'accès / Rôle ERP <span class="text-danger">*</span></label>
-            <div class="input-group">
+            <div class="input-group mb-2">
               <span class="input-group-text bg-white text-muted"><i class="bi bi-shield-lock"></i></span>
-              <select name="role" class="form-select" required>
-                <option value="operationnel" <%= targetUser.role === 'operationnel' ? 'selected' : '' %>>Operational - Tâches, Tiers & Dossiers uniquement</option>
-                <option value="commercial" <%= targetUser.role === 'commercial' ? 'selected' : '' %>>Commercial - Ventes, Facturation client & Analytics</option>
-                <option value="comptable" <%= targetUser.role === 'comptable' ? 'selected' : '' %>>Comptable - Grand Livre, Balance & Fournisseurs</option>
-                <option value="magasinier" <%= targetUser.role === 'magasinier' ? 'selected' : '' %>>Magasinier - Stocks & Achats</option>
-                <option value="rh" <%= targetUser.role === 'rh' ? 'selected' : '' %>>Ressources Humaines (RH)</option>
-                <option value="super_admin" <%= targetUser.role === 'super_admin' ? 'selected' : '' %>>Super Administrateur - Tout accès + Gestion Comptes</option>
-                <option value="lecture" <%= targetUser.role === 'lecture' ? 'selected' : '' %>>Lecture seule (Auditeur) - Aucun droit de modification</option>
+              <select id="role-select" name="role" class="form-select" required>
+                <option value="operationnel" <%= targetUser.role === 'operationnel' ? 'selected' : '' %>>Operational - Tâches, Tiers & Dossiers uniquement (operationnel)</option>
+                <option value="commercial" <%= targetUser.role === 'commercial' ? 'selected' : '' %>>Commercial - Ventes, Facturation client & Analytics (commercial)</option>
+                <option value="comptable" <%= targetUser.role === 'comptable' ? 'selected' : '' %>>Comptable - Grand Livre, Balance & Fournisseurs (comptable)</option>
+                <option value="magasinier" <%= targetUser.role === 'magasinier' ? 'selected' : '' %>>Magasinier - Stocks & Achats (magasinier)</option>
+                <option value="rh" <%= targetUser.role === 'rh' ? 'selected' : '' %>>Ressources Humaines (RH) (rh)</option>
+                <option value="super_admin" <%= targetUser.role === 'super_admin' ? 'selected' : '' %>>Super Administrateur - Tout accès + Gestion Comptes (super_admin)</option>
+                <option value="lecture" <%= targetUser.role === 'lecture' ? 'selected' : '' %>>Lecture seule (Auditeur) - Aucun droit de modification (lecture)</option>
+                
+                <option value="secretariat" <%= targetUser.role === 'secretariat' ? 'selected' : '' %>>Secrétariat — Suivi & Tiers (secretariat)</option>
+                <option value="validation_role" <%= targetUser.role === 'validation_role' ? 'selected' : '' %>>Validation — Dossiers (validation_role)</option>
+                <option value="guce" <%= targetUser.role === 'guce' ? 'selected' : '' %>>GUCE — Guichet Unique (guce)</option>
+                <option value="acconage" <%= targetUser.role === 'acconage' ? 'selected' : '' %>>Acconage — Opérations & Bons (acconage)</option>
+                <option value="enlevement" <%= targetUser.role === 'enlevement' ? 'selected' : '' %>>Enlèvement — Livraison & Bons (enlevement)</option>
+                <option value="direction" <%= targetUser.role === 'direction' ? 'selected' : '' %>>Direction — Décisions & Budgets (direction)</option>
+                <option value="agent_payeur" <%= targetUser.role === 'agent_payeur' ? 'selected' : '' %>>Agent Payeur — Trésorerie & Décaissements (agent_payeur)</option>
+                <option value="finances" <%= targetUser.role === 'finances' ? 'selected' : '' %>>Finances — Devis, Dossiers & Tiers (finances)</option>
+                <option value="comptable_ops" <%= targetUser.role === 'comptable_ops' ? 'selected' : '' %>>Comptabilité d'Opérations — Comptes & Budgets (comptable_ops)</option>
               </select>
+            </div>
+            <!-- Warning Alert Box for role changes -->
+            <div id="role-change-warning" class="alert alert-warning mb-2 py-2 px-3 small d-none">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Attention : changer le rôle modifiera les accès de cet utilisateur dès sa prochaine connexion.
+            </div>
+            <!-- Live module preview container -->
+            <div id="live-module-preview" class="border rounded p-2 bg-light small text-muted">
+              <strong>Modules autorisés :</strong> <span id="live-module-list">...</span>
             </div>
           </div>
           <div class="col-md-6">
@@ -107,5 +126,49 @@
     </div>
   </div>
 </div>
+
+<script>
+  const roleModulesMap = {
+    super_admin: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "rh"],
+    comptable: ["clients", "facturation", "stock", "comptabilite", "achats", "analytics"],
+    commercial: ["clients", "dossiers", "taches", "facturation", "analytics"],
+    operationnel: ["clients", "dossiers", "taches"],
+    magasinier: ["stock", "achats"],
+    rh: ["rh"],
+    lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"],
+    secretariat: ["dashboard", "dossiers", "clients"],
+    validation_role: ["dashboard", "dossiers"],
+    guce: ["dashboard", "dossiers"],
+    acconage: ["dashboard", "dossiers", "bons"],
+    enlevement: ["dashboard", "dossiers", "bons"],
+    direction: ["dashboard", "bons", "analytics"],
+    agent_payeur: ["dashboard", "bons"],
+    finances: ["dashboard", "documents", "dossiers", "clients"],
+    comptable_ops: ["dashboard", "documents", "dossiers", "accounting", "reports"]
+  };
+
+  const initialRole = "<%= targetUser.role %>";
+  const roleSelect = document.getElementById('role-select');
+  const roleChangeWarning = document.getElementById('role-change-warning');
+  const liveModuleList = document.getElementById('live-module-list');
+
+  function updateEditUI() {
+    const currentRole = roleSelect.value;
+    
+    // Show/hide warning banner
+    if (currentRole !== initialRole) {
+      roleChangeWarning.classList.remove('d-none');
+    } else {
+      roleChangeWarning.classList.add('d-none');
+    }
+
+    // Update live modules preview
+    const modules = roleModulesMap[currentRole] || [];
+    liveModuleList.textContent = modules.join(', ') || 'aucun';
+  }
+
+  roleSelect.addEventListener('change', updateEditUI);
+  updateEditUI();
+</script>
 
 <%- include('../../partials/footer') %>

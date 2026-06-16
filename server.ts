@@ -19,6 +19,7 @@ import facturesFournisseurRoutes from "./routes/factures-fournisseur";
 import { postPaymentEcriture } from "./lib/accounting";
 import adminRoutes from "./routes/admin";
 import profilRoutes from "./routes/profil";
+import bonsRoutes from "./routes/bons";
 import { requireAuth, requireModule, requireSuperAdmin } from "./routes/rbac";
 
 // Instanciation de Prisma
@@ -100,11 +101,18 @@ app.use(async (req: any, res: any, next: any) => {
         where: { id: req.session.userId },
       });
       res.locals.user = u || undefined;
+      
+      const count = await prisma.bonProvisoir.count({
+        where: { etat: "EN_ATTENTE" }
+      });
+      res.locals.pendingBonsCount = count;
     } catch (err) {
       res.locals.user = undefined;
+      res.locals.pendingBonsCount = 0;
     }
   } else {
     res.locals.user = undefined;
+    res.locals.pendingBonsCount = 0;
   }
   next();
 });
@@ -139,6 +147,7 @@ app.get("/", (req: any, res: any) => {
 
 app.use(profilRoutes);
 app.use(adminRoutes);
+app.use(bonsRoutes);
 
 // ==================== 2. TABLEAU DE BORD (DASHBOARD) ====================
 
@@ -885,6 +894,54 @@ app.get("/logs", requireAuth, requireSuperAdmin, async (req: any, res: any) => {
 async function seedAccounts() {
   try {
     const seedData = [
+      {
+        nom: "Service Acconage",
+        prenom: "Opérations",
+        email: "acconage@ym-transit.cm",
+        password: "acconage123",
+        role: "acconage",
+        societe: "BANA Logistics"
+      },
+      {
+        nom: "Service Enlevement",
+        prenom: "Opérations",
+        email: "enlevement@ym-transit.cm",
+        password: "enlevement123",
+        role: "enlevement",
+        societe: "BANA Logistics"
+      },
+      {
+        nom: "Directeur",
+        prenom: "Top Management",
+        email: "direction@ym-transit.cm",
+        password: "direction123",
+        role: "direction",
+        societe: "BANA Logistics"
+      },
+      {
+        nom: "Agent Payeur",
+        prenom: "Caisse",
+        email: "caisse@ym-transit.cm",
+        password: "caisse123",
+        role: "agent_payeur",
+        societe: "BANA Logistics"
+      },
+      {
+        nom: "Directeur Financier",
+        prenom: "Finances",
+        email: "finances@ym-transit.cm",
+        password: "finances123",
+        role: "finances",
+        societe: "BANA Logistics"
+      },
+      {
+        nom: "Comptable Operations",
+        prenom: "Comptabilité",
+        email: "compta_ops@ym-transit.cm",
+        password: "comptaops123",
+        role: "comptable_ops",
+        societe: "BANA Logistics"
+      },
       {
         nom: "Yannick Abega",
         prenom: "Super Admin",
