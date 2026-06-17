@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../lib/prismaClient";
 
 // Mappage des rôles et des modules autorisés
 export const ROLES_PERMISSIONS: { [key: string]: string[] } = {

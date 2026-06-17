@@ -1,10 +1,9 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import bcryptjs from "bcryptjs";
 import { requireAuth, requireSuperAdmin } from "./rbac";
+import prisma from "../lib/prismaClient";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Helper de log d'activité
 async function logActivity(userId: number, action: string, entity: string, entityId?: number | string) {

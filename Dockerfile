@@ -41,7 +41,7 @@ COPY --from=builder /app/views ./views/
 COPY --from=builder /app/prisma-check.js ./prisma-check.js
 
 # Create persistent directories for database and file uploads
-RUN mkdir -p /app/data /app/uploads
+RUN mkdir -p /app/data /app/uploads && chmod -R 777 /app/data /app/uploads
 
 # Default environment
 ENV NODE_ENV=production

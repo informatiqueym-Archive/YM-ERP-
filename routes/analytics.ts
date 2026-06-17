@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import { requireAuth, requireModule } from "./rbac";
+import prisma from "../lib/prismaClient";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Protéger toutes les routes de ce fichier avec la restriction de module analytics
 router.use(requireAuth, requireModule("analytics"));

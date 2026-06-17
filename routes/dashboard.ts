@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import { requireAuth } from "./rbac";
+import prisma from "../lib/prismaClient";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET /dashboard
 router.get("/dashboard", requireAuth, async (req: any, res: any) => {

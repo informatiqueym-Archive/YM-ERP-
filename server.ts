@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import session from "express-session";
-import { PrismaClient } from "@prisma/client";
+import prisma from "./lib/prismaClient";
 import bcryptjs from "bcryptjs";
 import multer from "multer";
 import PDFDocument from "pdfkit";
@@ -22,8 +22,7 @@ import profilRoutes from "./routes/profil";
 import bonsRoutes from "./routes/bons";
 import { requireAuth, requireModule, requireSuperAdmin } from "./routes/rbac";
 
-// Instanciation de Prisma
-const prisma = new PrismaClient();
+// Using singleton Prisma imported from ./lib/prismaClient
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -199,9 +198,9 @@ app.post("/clients/new", requireAuth, async (req: any, res: any) => {
     await logActivity(req.session.userId, "CREATION_CLIENT", "Client", newClient.id);
     req.session.success_msg = `Client "${nom}" enregistré avec succès !`;
     res.redirect("/clients");
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    req.session.error_msg = "Erreur lors de la création du client.";
+    req.session.error_msg = "Erreur lors de la création du client: " + (error.message || error);
     res.redirect("/clients");
   }
 });

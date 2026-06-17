@@ -1,12 +1,11 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { requireAuth, requireModule } from "./rbac";
+import prisma from "../lib/prismaClient";
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Protéger toutes les routes de ce fichier avec la restriction de module dossiers
 router.use(requireAuth, requireModule("dossiers"));
@@ -195,9 +194,9 @@ const handleDossierCreation = async (req: any, res: any) => {
 
     req.session.success_msg = `Dossier ${newDossier.numero} ouvert avec succès pour le suivi maritime !`;
     res.redirect(`/dossiers/${newDossier.id}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur de création du dossier :", error);
-    req.session.error_msg = "Une erreur est survenue lors de la création du dossier.";
+    req.session.error_msg = "Une erreur est survenue lors de la création du dossier: " + (error.message || error);
     res.redirect("/dossiers/create");
   }
 };
@@ -792,8 +791,8 @@ router.post("/dossiers/:id/pipeline/cloturer", requireAuth, async (req: any, res
   try {
     const id = parseInt(req.params.id);
     const user = req.session.user;
-    if (!["comptable_ops", "super_admin"].includes(user.role)) {
-      req.session.error_msg = "Seul la comptabilité opérationnelle ou un administrateur peut clôturer définitivement.";
+    if (!["comptable_ops", "super_admin", "direction", "comptable"].includes(user.role)) {
+      req.session.error_msg = "Seule la comptabilité, la direction ou un administrateur peut clôturer définitivement et archiver.";
       return res.redirect(`/dossiers/${id}`);
     }
 
@@ -808,9 +807,10 @@ router.post("/dossiers/:id/pipeline/cloturer", requireAuth, async (req: any, res
     await logActivity(req.session.userId, "DOSSIER_CLOTURE_ARCHIVE", "Dossier", id);
     req.session.success_msg = "Le dossier a été clôturé définitivement et archivé avec succès.";
     res.redirect(`/dossiers/${id}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur clôturer pipeline status :", error);
-    res.status(500).send("Erreur serveur.");
+    req.session.error_msg = "Erreur lors de la clôture / archivage du dossier: " + (error.message || error);
+    res.redirect(`/dossiers/${req.params.id}`);
   }
 });
 
