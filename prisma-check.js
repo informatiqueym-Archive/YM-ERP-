@@ -4,6 +4,15 @@ import { execSync } from "child_process";
 
 console.log("🚀 [PRISMA-CHECK] Démarrage du script de résilience de la base de données...");
 
+// 0. Génération du client Prisma (garantit la synchronisation des types et du client en production)
+try {
+  console.log("👉 [PRISMA-CHECK] Régénération locale du client Prisma...");
+  execSync("npx prisma generate", { stdio: "inherit" });
+  console.log("✅ [PRISMA-CHECK] Client Prisma généré avec succès.");
+} catch (err) {
+  console.error("❌ [PRISMA-CHECK] Erreur lors de la génération du client Prisma :", err.message);
+}
+
 // Fonction utilitaire pour forcer une variable d'environnement dans .env et process.env
 function forceEnvironmentVariable(key, value) {
   const envPath = path.resolve(".env");
