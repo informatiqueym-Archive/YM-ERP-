@@ -8,26 +8,26 @@ datasource db {
 }
 
 model User {
-  id               Int                 @id @default(autoincrement())
-  nom              String
-  prenom           String?
-  email            String              @unique
-  password         String
-  role             String              @default("operationnel")
-  societe          String
-  actif            Boolean             @default(true)
-  force_pwd_change Boolean             @default(false)
-  last_login       DateTime?
-  created_at       DateTime            @default(now())
-  created_by       Int?
-  logs             ActivityLog[]
-  taches           Tache[]
-  comments         TacheComment[]
-  ecritures        EcritureComptable[]
-  bons_demandes    BonProvisoir[] @relation("BonDemandeur")
-  bons_approuves   BonProvisoir[] @relation("BonApprover")
-  bons_reel_soumis BonReel[]      @relation("BonReelSoumis")
-  bons_reel_confirmes BonReel[]   @relation("BonReelConfirme")
+  id                  Int                 @id @default(autoincrement())
+  nom                 String
+  prenom              String?
+  email               String              @unique
+  password            String
+  role                String              @default("operationnel")
+  societe             String
+  actif               Boolean             @default(true)
+  force_pwd_change    Boolean             @default(false)
+  last_login          DateTime?
+  created_at          DateTime            @default(now())
+  created_by          Int?
+  logs                ActivityLog[]
+  bons_approuves      BonProvisoir[]      @relation("BonApprover")
+  bons_demandes       BonProvisoir[]      @relation("BonDemandeur")
+  bons_reel_confirmes BonReel[]           @relation("BonReelConfirme")
+  bons_reel_soumis    BonReel[]           @relation("BonReelSoumis")
+  ecritures           EcritureComptable[]
+  taches              Tache[]
+  comments            TacheComment[]
 }
 
 model Client {
@@ -43,40 +43,40 @@ model Client {
 }
 
 model Dossier {
-  id            Int      @id @default(autoincrement())
-  numero        String   @unique
-  client_id     Int
-  port          String
-  nature        String
-  etat          String
-  bl            String   @default("")
-  contenu       String?
-  droits_douane Float?
-  validation    Boolean  @default(false)
-  valeur_douane Float?
-  created_at      DateTime @default(now())
-  representant    String?  @default("")
-  pipeline_status String   @default("CREE")
+  id              Int            @id @default(autoincrement())
+  numero          String         @unique
+  client_id       Int
+  port            String
+  nature          String
+  etat            String
+  bl              String         @default("")
+  contenu         String?
+  droits_douane   Float?
+  validation      Boolean        @default(false)
+  valeur_douane   Float?
+  created_at      DateTime       @default(now())
+  representant    String?        @default("")
+  pipeline_status String         @default("CREE")
   archived_at     DateTime?
-  client          Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  taches          Tache[]
   bons_provisoir  BonProvisoir[]
   bons_reel       BonReel[]
+  client          Client         @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  taches          Tache[]
 }
 
 model Tache {
-  id             Int       @id @default(autoincrement())
+  id             Int            @id @default(autoincrement())
   dossier_id     Int
   titre          String
   intervenant_id Int?
   etat           String
   observations   String?
   deadline       DateTime?
-  created_at     DateTime  @default(now())
-  archive        Boolean   @default(false)
-  intervenant    User?     @relation(fields: [intervenant_id], references: [id])
-  dossier        Dossier   @relation(fields: [dossier_id], references: [id], onDelete: Cascade)
+  created_at     DateTime       @default(now())
+  archive        Boolean        @default(false)
   subtasks       SubTask[]
+  dossier        Dossier        @relation(fields: [dossier_id], references: [id], onDelete: Cascade)
+  intervenant    User?          @relation(fields: [intervenant_id], references: [id])
   comments       TacheComment[]
 }
 
@@ -87,8 +87,8 @@ model TacheComment {
   contenu      String
   is_next_step Boolean  @default(false)
   created_at   DateTime @default(now())
-  tache        Tache    @relation(fields:[tache_id], references:[id], onDelete: Cascade)
-  user         User     @relation(fields:[user_id], references:[id], onDelete: Cascade)
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tache        Tache    @relation(fields: [tache_id], references: [id], onDelete: Cascade)
 }
 
 model SubTask {
@@ -156,131 +156,131 @@ model ActivityLog {
 }
 
 model CompteComptable {
-  id          Int      @id @default(autoincrement())
-  code        String   @unique
+  id          Int                 @id @default(autoincrement())
+  code        String              @unique
   nom         String
   type        String
   sens_normal String
   societe     String
-  actif       Boolean  @default(true)
+  actif       Boolean             @default(true)
   ecritures   EcritureComptable[]
 }
 
 model EcritureComptable {
-  id          Int      @id @default(autoincrement())
-  journal     String
-  date        DateTime @default(now())
-  piece_ref   String
-  compte_id   Int
-  libelle     String
-  debit       Float    @default(0)
-  credit      Float    @default(0)
-  societe     String
-  created_by  Int
-  locked      Boolean  @default(false)
-  compte      CompteComptable @relation(fields:[compte_id], references:[id])
-  user        User @relation(fields:[created_by], references:[id])
+  id         Int             @id @default(autoincrement())
+  journal    String
+  date       DateTime        @default(now())
+  piece_ref  String
+  compte_id  Int
+  libelle    String
+  debit      Float           @default(0)
+  credit     Float           @default(0)
+  societe    String
+  created_by Int
+  locked     Boolean         @default(false)
+  user       User            @relation(fields: [created_by], references: [id])
+  compte     CompteComptable @relation(fields: [compte_id], references: [id])
 }
 
 model PeriodeComptable {
-  id       Int      @id @default(autoincrement())
-  mois     Int
-  annee    Int
-  locked   Boolean  @default(false)
-  societe  String
+  id      Int     @id @default(autoincrement())
+  mois    Int
+  annee   Int
+  locked  Boolean @default(false)
+  societe String
+
   @@unique([mois, annee, societe])
 }
 
 model TauxChange {
-  id       Int      @id @default(autoincrement())
-  devise   String
-  taux     Float
-  date     DateTime @default(now())
+  id     Int      @id @default(autoincrement())
+  devise String
+  taux   Float
+  date   DateTime @default(now())
 }
 
 model Fournisseur {
-  id        Int     @id @default(autoincrement())
+  id        Int                  @id @default(autoincrement())
   nom       String
   niu       String?
   rccm      String?
   adresse   String?
   tel       String?
   email     String?
-  devise    String  @default("FCFA")
+  devise    String               @default("FCFA")
   societe   String
-  actif     Boolean @default(true)
+  actif     Boolean              @default(true)
   commandes BonCommande[]
   factures  FactureFournisseur[]
 }
 
 model BonCommande {
-  id             Int      @id @default(autoincrement())
-  numero         String   @unique
+  id             Int                  @id @default(autoincrement())
+  numero         String               @unique
   fournisseur_id Int
-  date           DateTime @default(now())
+  date           DateTime             @default(now())
   date_livraison DateTime?
-  etat           String   @default("Brouillon")
-  total_ht       Float    @default(0)
-  total_ttc      Float    @default(0)
+  etat           String               @default("Brouillon")
+  total_ht       Float                @default(0)
+  total_ttc      Float                @default(0)
   notes          String?
   societe        String
   created_by     Int
-  fournisseur    Fournisseur @relation(fields:[fournisseur_id], references:[id])
-  lignes         LigneBonCommande[]
+  fournisseur    Fournisseur          @relation(fields: [fournisseur_id], references: [id])
   factures       FactureFournisseur[]
+  lignes         LigneBonCommande[]
 }
 
 model LigneBonCommande {
-  id            Int    @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   commande_id   Int
   description   String
   quantite      Float
   prix_unitaire Float
   total         Float
-  commande      BonCommande @relation(fields:[commande_id], references:[id], onDelete: Cascade)
+  commande      BonCommande @relation(fields: [commande_id], references: [id], onDelete: Cascade)
 }
 
 model FactureFournisseur {
-  id             Int      @id @default(autoincrement())
+  id             Int                   @id @default(autoincrement())
   numero         String
   commande_id    Int?
   fournisseur_id Int
-  date           DateTime @default(now())
+  date           DateTime              @default(now())
   echeance       DateTime?
   montant_ht     Float
   montant_ttc    Float
-  etat           String   @default("En attente")
+  etat           String                @default("En attente")
   societe        String
-  fournisseur    Fournisseur @relation(fields:[fournisseur_id], references:[id])
-  commande       BonCommande? @relation(fields:[commande_id], references:[id])
+  commande       BonCommande?          @relation(fields: [commande_id], references: [id])
+  fournisseur    Fournisseur           @relation(fields: [fournisseur_id], references: [id])
   paiements      PaiementFournisseur[]
 }
 
 model PaiementFournisseur {
-  id         Int      @id @default(autoincrement())
+  id         Int                @id @default(autoincrement())
   facture_id Int
   montant    Float
   moyen      String
-  date       DateTime @default(now())
-  facture    FactureFournisseur @relation(fields:[facture_id], references:[id], onDelete: Cascade)
+  date       DateTime           @default(now())
+  facture    FactureFournisseur @relation(fields: [facture_id], references: [id], onDelete: Cascade)
 }
 
 model BonProvisoir {
-  id              Int          @id @default(autoincrement())
-  numero          String       @unique
+  id              Int       @id @default(autoincrement())
+  numero          String    @unique
   dossier_id      Int
   service         String
   demandeur_id    Int
   objet           String
   montant_demande Float
-  items_json      String?      // Liste des articles en format JSON stringifié: [{ designation, montant }]
-  etat            String       @default("EN_ATTENTE")
-  // Les 5 Ticks de validation de la Direction Générale / Top Management
-  tick_pdg        Boolean      @default(false)
-  tick_dg         Boolean      @default(false)
-  tick_dga        Boolean      @default(false)
-  tick_daf        Boolean      @default(false)
-  tick_audit      Boolean      @default(false)
+  items_json      String?
+  etat            String    @default("EN_ATTENTE")
+  tick_pdg        Boolean   @default(false)
+  tick_dg         Boolean   @default(false)
+  tick_dga        Boolean   @default(false)
+  tick_daf        Boolean   @default(false)
+  tick_audit      Boolean   @default(false)
   tick_pdg_by     String?
   tick_dg_by      String?
   tick_dga_by     String?
@@ -289,10 +289,10 @@ model BonProvisoir {
   approved_by_id  Int?
   approved_at     DateTime?
   motif_rejet     String?
-  created_at      DateTime     @default(now())
-  dossier         Dossier      @relation(fields:[dossier_id], references:[id])
-  demandeur       User         @relation("BonDemandeur", fields:[demandeur_id], references:[id])
-  approver        User?        @relation("BonApprover", fields:[approved_by_id], references:[id])
+  created_at      DateTime  @default(now())
+  approver        User?     @relation("BonApprover", fields: [approved_by_id], references: [id])
+  demandeur       User      @relation("BonDemandeur", fields: [demandeur_id], references: [id])
+  dossier         Dossier   @relation(fields: [dossier_id], references: [id])
   bon_reel        BonReel?
 }
 
@@ -304,14 +304,13 @@ model BonReel {
   montant_reel      Float
   ecart             Float
   observations      String?
-  items_json        String?      // Liste des articles réels dépensés en format JSON
+  items_json        String?
   soumis_par_id     Int
   confirme_par_id   Int?
   confirme_at       DateTime?
   created_at        DateTime     @default(now())
-  bon_provisoir     BonProvisoir @relation(fields:[bon_provisoir_id], references:[id])
-  dossier           Dossier      @relation(fields:[dossier_id], references:[id])
-  soumis_par        User         @relation("BonReelSoumis", fields:[soumis_par_id], references:[id])
-  confirme_par      User?        @relation("BonReelConfirme", fields:[confirme_par_id], references:[id])
+  confirme_par      User?        @relation("BonReelConfirme", fields: [confirme_par_id], references: [id])
+  soumis_par        User         @relation("BonReelSoumis", fields: [soumis_par_id], references: [id])
+  dossier           Dossier      @relation(fields: [dossier_id], references: [id])
+  bon_provisoir     BonProvisoir @relation(fields: [bon_provisoir_id], references: [id])
 }
-
