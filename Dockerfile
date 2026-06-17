@@ -28,10 +28,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy Prisma schema and generated client from builder
+# Copy Prisma schema and folder
 COPY --from=builder /app/prisma ./prisma/
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma/
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma/
 
 # Copy built server output
 COPY --from=builder /app/dist ./dist/
@@ -39,6 +37,9 @@ COPY --from=builder /app/dist ./dist/
 # Copy runtime assets that are NOT compiled into dist
 COPY --from=builder /app/views ./views/
 COPY --from=builder /app/prisma-check.js ./prisma-check.js
+
+# Generate fresh Prisma Client for the production stage
+RUN npx prisma generate
 
 # Create persistent directories for database and file uploads
 RUN mkdir -p /app/data /app/uploads && chmod -R 777 /app/data /app/uploads
