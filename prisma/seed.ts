@@ -4,9 +4,9 @@ import bcryptjs from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const userCount = await prisma.user.count().catch(() => 0);
-  if (userCount > 0) {
-    console.log("La base de données contient déjà des données. Cycle de peuplement ignoré.");
+  const clientCount = await prisma.client.count().catch(() => 0);
+  if (clientCount > 0) {
+    console.log("La base de données contient déjà des données (clients). Cycle de peuplement ignoré.");
     return;
   }
 
@@ -180,6 +180,7 @@ async function main() {
       nature: "IMPORT",
       etat: "EN_COURS",
       created_at: new Date("2026-05-10T10:00:00Z"),
+      pipeline_status: "EN_TRAITEMENT",
     },
   });
 
@@ -191,6 +192,7 @@ async function main() {
       nature: "EXPORT",
       etat: "OUVERT",
       created_at: new Date("2026-06-01T14:30:00Z"),
+      pipeline_status: "CREE",
     },
   });
 
@@ -202,6 +204,8 @@ async function main() {
       nature: "IMPORT",
       etat: "CLOTURE",
       created_at: new Date("2026-04-15T09:00:00Z"),
+      pipeline_status: "ARCHIVE",
+      archived_at: new Date("2026-06-15T10:00:00Z"),
     },
   });
 

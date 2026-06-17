@@ -56,7 +56,7 @@ model Dossier {
   valeur_douane Float?
   created_at      DateTime @default(now())
   representant    String?  @default("")
-  pipeline_status String   @default("ARCHIVE")
+  pipeline_status String   @default("CREE")
   archived_at     DateTime?
   client          Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
   taches          Tache[]
