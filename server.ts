@@ -136,6 +136,70 @@ async function logActivity(userId: number, action: string, entity: string, entit
 
 app.use(authRoutes);
 
+// Endpoint de diagnostic pour s'assurer de la synchronisation de Prisma sur Coolify et en production
+app.get("/api/debug-prisma", async (req: any, res: any) => {
+  try {
+    const fs = await import("fs");
+    const path = await import("path");
+    const schemaPath = path.resolve("prisma/schema.prisma");
+    const schemaContent = fs.existsSync(schemaPath) ? fs.readFileSync(schemaPath, "utf-8") : "Fichier de schéma non trouvé";
+    
+    const hasRepresentantInSchemaFile = schemaContent.includes("representant");
+
+    // Introspection dynamique des propriétés du modèle Dossier
+    let dmmfFields: string[] = [];
+    try {
+      const keys = Object.keys((prisma as any)._dmmf?.modelMap?.Dossier?.fields || {});
+      if (keys.length > 0) {
+        dmmfFields = keys;
+      }
+    } catch (e: any) {
+      dmmfFields = ["Impossible de lire dmmf: " + e.message];
+    }
+
+    const packageJsonPath = path.resolve("package.json");
+    const packageJson = fs.existsSync(packageJsonPath) ? JSON.parse(fs.readFileSync(packageJsonPath, "utf-8")) : {};
+
+    // Vérifier si we can query normally
+    let dbStatus = "UNKNOWN";
+    let dbDossierFields: string[] = [];
+    try {
+      const firstDossier = await prisma.dossier.findFirst();
+      dbStatus = "CONNECTED_OK";
+      if (firstDossier) {
+        dbDossierFields = Object.keys(firstDossier);
+      } else {
+        dbDossierFields = ["No dossier found in DB yet"];
+      }
+    } catch (e: any) {
+      dbStatus = "ERROR: " + e.message;
+    }
+
+    res.json({
+      meta: {
+        serverTime: new Date().toISOString(),
+        version: packageJson.version,
+        environment: process.env.NODE_ENV,
+        nodeVersion: process.version,
+      },
+      fileChecks: {
+        schemaFileExists: fs.existsSync(schemaPath),
+        hasRepresentantInSchemaFile,
+      },
+      prismaClient: {
+        dmmfFields,
+      },
+      database: {
+        status: dbStatus,
+        sampleDossierFields: dbDossierFields,
+        urlType: process.env.DATABASE_URL ? (process.env.DATABASE_URL.startsWith("file:") ? "SQLite (Local File)" : "External DB") : "No URL"
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 app.get("/", (req: any, res: any) => {
   if (req.session && req.session.userId) {
     res.redirect("/dashboard");
