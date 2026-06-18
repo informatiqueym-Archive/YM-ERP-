@@ -47,6 +47,22 @@ import { requireAuth, requireModule, requireSuperAdmin } from "./routes/rbac";
           safeAlter("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME");
           db.close();
           console.log("[STARTUP-MIGRATION] Done.");
+        } else {
+          try {
+            const { execSync } = await import("child_process");
+            const runSql = (sql: string) => {
+              try {
+                execSync(`sqlite3 "${absPath}" "${sql}"`, { stdio: "ignore" });
+                console.log("[STARTUP-MIGRATION] Applied via sqlite3 CLI:", sql);
+              } catch (err) {}
+            };
+            runSql("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT '';");
+            runSql("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE';");
+            runSql("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME;");
+            console.log("[STARTUP-MIGRATION] Done via sqlite3 CLI.");
+          } catch (cliErr: any) {
+            console.log("[STARTUP-MIGRATION] sqlite3 CLI not available.");
+          }
         }
       }
     }
