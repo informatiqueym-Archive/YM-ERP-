@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node prisma-check.js && tsx server.ts",
-   "build": "npx prisma generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild prisma/seed.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/seed.cjs",
+    "build": "npx prisma generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild prisma/seed.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/seed.cjs",
     "start": "node prisma-check.js && node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
@@ -42,6 +42,5 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
-  
   }
 }
