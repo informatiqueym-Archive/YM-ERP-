@@ -99,6 +99,49 @@ router.get("/dossiers", requireAuth, async (req: any, res: any) => {
   }
 });
 
+// GET /archives & GET /dossiers/archives - Liste des dossiers archivés définitivement
+const handleGetArchives = async (req: any, res: any) => {
+  try {
+    const dossiers = await prisma.dossier.findMany({
+      where: {
+        pipeline_status: "ARCHIVE"
+      },
+      include: {
+        client: true,
+        taches: true
+      },
+      orderBy: {
+        archived_at: "desc"
+      }
+    });
+
+    res.render("dossiers/archives", {
+      dossiers,
+      title: "Archives des Dossiers Logistiques",
+    });
+  } catch (error) {
+    console.error("Erreur listing archives :", error);
+    res.status(500).send("Erreur lors de la récupération des archives d'expédition.");
+  }
+};
+
+router.get("/archives", requireAuth, handleGetArchives);
+router.get("/dossiers/archives", requireAuth, handleGetArchives);
+
+// GET /dossiers/create - Formulaire de création de dossiers
+router.get("/dossiers/create", requireAuth, async (req: any, res: any) => {
+  try {
+    const clients = await prisma.client.findMany({ orderBy: { nom: "asc" } });
+    res.render("dossiers/create", {
+      clients,
+      title: "Ouvrir un Dossier de Transit Maritime & Douanier",
+    });
+  } catch (error) {
+    console.error("Erreur init formulaire dossier :", error);
+    res.status(500).send("Erreur d'initialisation du formulaire.");
+  }
+});
+
 // POST /dossiers/create - Enregistrement d'un dossier (et route compatible /dossiers/new)
 const handleDossierCreation = async (req: any, res: any) => {
   try {
@@ -393,9 +436,9 @@ router.get("/dossiers/:id", requireAuth, async (req: any, res: any) => {
       clients,
       title: `Suivi Dossier - ${dossier.numero}`,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur chargement détail dossier :", error);
-    res.status(500).send("Erreur lors de la récupération de la fiche détaillée.");
+    res.status(500).send(`Erreur lors de la récupération de la fiche détaillée. Détails de l'erreur interne: ${error?.message || error}\n\nStacktrace:\n${error?.stack}`);
   }
 });
 
