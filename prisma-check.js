@@ -4,15 +4,6 @@ import { execSync } from "child_process";
 
 console.log("🚀 [PRISMA-CHECK] Démarrage du script de résilience de la base de données...");
 
-// 0. Génération du client Prisma (garantit la synchronisation des types et du client en production)
-try {
-  console.log("👉 [PRISMA-CHECK] Régénération locale du client Prisma...");
-  execSync("npx prisma generate", { stdio: "inherit" });
-  console.log("✅ [PRISMA-CHECK] Client Prisma généré avec succès.");
-} catch (err) {
-  console.error("❌ [PRISMA-CHECK] Erreur lors de la génération du client Prisma :", err.message);
-}
-
 // Fonction utilitaire pour forcer une variable d'environnement dans .env et process.env
 function forceEnvironmentVariable(key, value) {
   const envPath = path.resolve(".env");
@@ -140,6 +131,13 @@ try {
   console.log("👉 [PRISMA-CHECK] Lancement de : npx prisma db push --accept-data-loss");
   execSync("npx prisma db push --accept-data-loss", { stdio: "inherit" });
   pushSuccess = true;
+  try {
+    console.log("👉 [PRISMA-CHECK] Régénération du client Prisma après push...");
+    execSync("npx prisma generate", { stdio: "inherit" });
+    console.log("✅ [PRISMA-CHECK] Client Prisma régénéré.");
+  } catch (genErr) {
+    console.error("❌ [PRISMA-CHECK] Erreur génération client:", genErr.message);
+  }
 } catch (error) {
   console.error("⚠️ [PRISMA-CHECK] Premier essai de push échoué. Tentative de réinitialisation physique...");
   safeDelete(dbPath);
@@ -179,6 +177,27 @@ if (!pushSuccess && dbPath !== path.resolve("prisma", "dev.db")) {
     console.error("❌ [PRISMA-CHECK] Échec ultime du push de sauvetage locale :", fallbackError.message);
   }
 }
+
+  if (pushSuccess && fs.existsSync(dbPath)) {
+    try {
+      console.log("👉 [PRISMA-CHECK] Vérification des colonnes manquantes...");
+      const Database = (await import("better-sqlite3").catch(() => null))?.default;
+      if (Database) {
+        const db = new Database(dbPath);
+        const safeAlter = (sql) => {
+          try { db.exec(sql); }
+          catch (e) { /* Colonne déjà existante — normal */ }
+        };
+        safeAlter("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT ''");
+        safeAlter("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE'");
+        safeAlter("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME");
+        db.close();
+        console.log("✅ [PRISMA-CHECK] Colonnes vérifiées.");
+      }
+    } catch (migErr) {
+      console.log("ℹ️ [PRISMA-CHECK] Vérification colonnes ignorée:", migErr.message);
+    }
+  }
 
 // 7. Seed Database
 if (pushSuccess) {
