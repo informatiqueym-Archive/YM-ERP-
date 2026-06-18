@@ -99,49 +99,6 @@ router.get("/dossiers", requireAuth, async (req: any, res: any) => {
   }
 });
 
-// GET /archives & GET /dossiers/archives - Liste des dossiers archivés définitivement
-const handleGetArchives = async (req: any, res: any) => {
-  try {
-    const dossiers = await prisma.dossier.findMany({
-      where: {
-        pipeline_status: "ARCHIVE"
-      },
-      include: {
-        client: true,
-        taches: true
-      },
-      orderBy: {
-        archived_at: "desc"
-      }
-    });
-
-    res.render("dossiers/archives", {
-      dossiers,
-      title: "Archives des Dossiers Logistiques",
-    });
-  } catch (error) {
-    console.error("Erreur listing archives :", error);
-    res.status(500).send("Erreur lors de la récupération des archives d'expédition.");
-  }
-};
-
-router.get("/archives", requireAuth, handleGetArchives);
-router.get("/dossiers/archives", requireAuth, handleGetArchives);
-
-// GET /dossiers/create - Formulaire de création de dossiers
-router.get("/dossiers/create", requireAuth, async (req: any, res: any) => {
-  try {
-    const clients = await prisma.client.findMany({ orderBy: { nom: "asc" } });
-    res.render("dossiers/create", {
-      clients,
-      title: "Ouvrir un Dossier de Transit Maritime & Douanier",
-    });
-  } catch (error) {
-    console.error("Erreur init formulaire dossier :", error);
-    res.status(500).send("Erreur d'initialisation du formulaire.");
-  }
-});
-
 // POST /dossiers/create - Enregistrement d'un dossier (et route compatible /dossiers/new)
 const handleDossierCreation = async (req: any, res: any) => {
   try {
@@ -168,22 +125,44 @@ const handleDossierCreation = async (req: any, res: any) => {
     const parsedValeur = valeur_douane ? parseFloat(valeur_douane) : null;
     const validationBool = (validation === 'true' || validation === true || validation === 'on');
 
-    const newDossier = await prisma.dossier.create({
-      data: {
-        client_id: clientIdParsed,
-        numero: numero.trim(),
-        port: port,
-        nature: nature,
-        bl: bl.trim(),
-        etat: etat || "OUVERT",
-        contenu: contenu || null,
-        droits_douane: parsedDroits,
-        validation: validationBool,
-        valeur_douane: parsedValeur,
-        representant: representant ? representant.trim() : null,
-        pipeline_status: "CREE"
-      },
-    });
+    let newDossier;
+    try {
+      newDossier = await prisma.dossier.create({
+        data: {
+          client_id: clientIdParsed,
+          numero: numero.trim(),
+          port: port,
+          nature: nature,
+          bl: bl.trim(),
+          etat: etat || "OUVERT",
+          contenu: contenu || null,
+          droits_douane: parsedDroits,
+          validation: validationBool,
+          valeur_douane: parsedValeur,
+          representant: representant ? representant.trim() : null,
+          pipeline_status: "CREE"
+        },
+      });
+    } catch (e: any) {
+      if (e.message && e.message.includes("Unknown argument")) {
+        newDossier = await prisma.dossier.create({
+          data: {
+            client_id: clientIdParsed,
+            numero: numero.trim(),
+            port: port,
+            nature: nature,
+            bl: bl.trim(),
+            etat: etat || "OUVERT",
+            contenu: contenu || null,
+            droits_douane: parsedDroits,
+            validation: validationBool,
+            valeur_douane: parsedValeur
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
 
     await logActivity(
       req.session.userId,
