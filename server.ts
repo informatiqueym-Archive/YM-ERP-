@@ -22,6 +22,39 @@ import profilRoutes from "./routes/profil";
 import bonsRoutes from "./routes/bons";
 import { requireAuth, requireModule, requireSuperAdmin } from "./routes/rbac";
 
+// Startup safety migration — runs once, adds missing DB columns if needed
+(async () => {
+  try {
+    const fs = await import("fs");
+    const dbUrl = process.env.DATABASE_URL || "";
+    if (dbUrl.startsWith("file:")) {
+      const dbPath = dbUrl.substring(5);
+      const absPath = path.isAbsolute(dbPath)
+        ? dbPath
+        : path.resolve("prisma", dbPath);
+      if (fs.existsSync(absPath)) {
+        // @ts-ignore
+        const { default: Database } = await import("better-sqlite3")
+          .catch(() => ({ default: null })) as any;
+        if (Database) {
+          const db = new Database(absPath);
+          const safeAlter = (sql: string) => {
+            try { db.exec(sql); console.log("[STARTUP-MIGRATION] Applied:", sql); }
+            catch (e) { /* Column exists — ok */ }
+          };
+          safeAlter("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT ''");
+          safeAlter("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE'");
+          safeAlter("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME");
+          db.close();
+          console.log("[STARTUP-MIGRATION] Done.");
+        }
+      }
+    }
+  } catch (e: any) {
+    console.log("[STARTUP-MIGRATION] Skipped:", e.message);
+  }
+})();
+
 // Using singleton Prisma imported from ./lib/prismaClient
 
 const app = express();
