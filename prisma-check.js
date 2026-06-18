@@ -178,43 +178,43 @@ if (!pushSuccess && dbPath !== path.resolve("prisma", "dev.db")) {
   }
 }
 
-if (pushSuccess && fs.existsSync(dbPath)) {
-  try {
-    console.log("👉 [PRISMA-CHECK] Vérification des colonnes manquantes...");
-    const Database = (await import("better-sqlite3").catch(() => null))?.default;
-    if (Database) {
-      const db = new Database(dbPath);
-      const safeAlter = (sql) => {
-        try { db.exec(sql); }
-        catch (e) { /* Colonne déjà existante — normal */ }
-      };
-      safeAlter("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT ''");
-      safeAlter("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE'");
-      safeAlter("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME");
-      db.close();
-      console.log("✅ [PRISMA-CHECK] Colonnes vérifiées.");
-    } else {
-      // Fallback using SQLite3 CLI
-      try {
-        const runSql = (sql) => {
-          try {
-            execSync(`sqlite3 "${dbPath}" "${sql}"`, { stdio: "ignore" });
-          } catch (err) {
-            // Ignore already exists / index error
-          }
+  if (pushSuccess && fs.existsSync(dbPath)) {
+    try {
+      console.log("👉 [PRISMA-CHECK] Vérification des colonnes manquantes...");
+      const Database = (await import("better-sqlite3").catch(() => null))?.default;
+      if (Database) {
+        const db = new Database(dbPath);
+        const safeAlter = (sql) => {
+          try { db.exec(sql); }
+          catch (e) { /* Colonne déjà existante — normal */ }
         };
-        runSql("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT '';");
-        runSql("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE';");
-        runSql("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME;");
-        console.log("✅ [PRISMA-CHECK] Colonnes vérifiées par CLI sqlite3.");
-      } catch (cliErr) {
-        console.log("ℹ️ [PRISMA-CHECK] sqlite3 CLI non disponible.");
+        safeAlter("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT ''");
+        safeAlter("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE'");
+        safeAlter("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME");
+        db.close();
+        console.log("✅ [PRISMA-CHECK] Colonnes vérifiées.");
+      } else {
+        // Fallback using SQLite3 CLI
+        try {
+          const runSql = (sql) => {
+            try {
+              execSync(`sqlite3 "${dbPath}" "${sql}"`, { stdio: "ignore" });
+            } catch (err) {
+              // Ignore already exists / index error
+            }
+          };
+          runSql("ALTER TABLE Dossier ADD COLUMN representant TEXT DEFAULT '';");
+          runSql("ALTER TABLE Dossier ADD COLUMN pipeline_status TEXT DEFAULT 'ARCHIVE';");
+          runSql("ALTER TABLE Dossier ADD COLUMN archived_at DATETIME;");
+          console.log("✅ [PRISMA-CHECK] Colonnes vérifiées par CLI sqlite3.");
+        } catch (cliErr) {
+          console.log("ℹ️ [PRISMA-CHECK] sqlite3 CLI non disponible.");
+        }
       }
+    } catch (migErr) {
+      console.log("ℹ️ [PRISMA-CHECK] Vérification colonnes ignorée:", migErr.message);
     }
-  } catch (migErr) {
-    console.log("ℹ️ [PRISMA-CHECK] Vérification colonnes ignorée:", migErr.message);
   }
-}
 
 // 7. Seed Database
 if (pushSuccess) {
