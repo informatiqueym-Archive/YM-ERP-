@@ -436,9 +436,9 @@ router.get("/dossiers/:id", requireAuth, async (req: any, res: any) => {
       clients,
       title: `Suivi Dossier - ${dossier.numero}`,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur chargement détail dossier :", error);
-    res.status(500).send("Erreur lors de la récupération de la fiche détaillée.");
+    res.status(500).send(`Erreur lors de la récupération de la fiche détaillée. Détails de l'erreur interne: ${error?.message || error}\n\nStacktrace:\n${error?.stack}`);
   }
 });
 
