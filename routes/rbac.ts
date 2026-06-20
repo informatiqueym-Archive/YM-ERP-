@@ -3,20 +3,30 @@ import prisma from "../lib/prismaClient";
 // Mappage des rôles et des modules autorisés
 export const ROLES_PERMISSIONS: { [key: string]: string[] } = {
   super_admin: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "rh"],
-  comptable: ["clients", "facturation", "stock", "comptabilite", "achats", "analytics", "dossiers"],
-  commercial: ["clients", "dossiers", "taches", "facturation", "analytics"],
-  operationnel: ["clients", "dossiers", "taches"],
-  magasinier: ["stock", "achats", "dossiers"],
-  rh: ["rh"],
-  lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"],
-  
+  pdg: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "bons"],
+  dg: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "bons"],
+  dga: ["admin", "clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics", "bons"],
+  daf: ["clients", "dossiers", "taches", "facturation", "comptabilite", "analytics", "bons"],
+  auditeur1: ["clients", "dossiers", "taches", "facturation", "comptabilite", "analytics", "bons"],
+  auditeur2: ["clients", "dossiers", "taches", "analytics", "bons"],
   secretariat: ["dashboard", "dossiers", "clients", "taches"],
+  validation: ["dashboard", "dossiers", "taches"],
   validation_role: ["dashboard", "dossiers", "taches"],
   guce: ["dashboard", "dossiers", "taches"],
   acconage: ["dashboard", "dossiers", "bons", "taches"],
   enlevement: ["dashboard", "dossiers", "bons", "taches"],
-  direction: ["dashboard", "bons", "analytics", "dossiers", "taches"],
-  agent_payeur: ["dashboard", "bons", "dossiers", "taches"],
+  facturation: ["dashboard", "documents", "facturation", "dossiers", "clients", "taches"],
+  fiscalite: ["dashboard", "dossiers", "taches", "analytics"],
+  cloture: ["dashboard", "dossiers", "taches"],
+  agent_payeur: ["dashboard", "bons", "dossiers", "taches", "comptabilite"],
+  caisse: ["dashboard", "bons", "dossiers", "taches", "comptabilite"],
+  analyste: ["dashboard", "analytics", "dossiers", "taches"],
+  comptable: ["clients", "facturation", "stock", "comptabilite", "achats", "analytics", "dossiers", "taches"],
+  commercial: ["clients", "dossiers", "taches", "facturation", "analytics"],
+  operationnel: ["clients", "dossiers", "taches"],
+  magasinier: ["stock", "achats", "dossiers", "taches"],
+  rh: ["rh", "taches"],
+  lecture: ["clients", "dossiers", "taches", "facturation", "stock", "comptabilite", "achats", "analytics"],
   finances: ["dashboard", "documents", "facturation", "dossiers", "clients", "taches"],
   comptable_ops: ["dashboard", "documents", "facturation", "dossiers", "accounting", "comptabilite", "reports", "taches"]
 };
@@ -80,8 +90,35 @@ export const requireModule = (moduleName: string) => {
       return res.redirect("/login");
     }
 
+    // 1. Super admin can always perform any action
+    if (user.role === "super_admin") {
+      return next();
+    }
+
+    // 2. All other users can view (GET) any module/functionality of the system
+    if (req.method === "GET") {
+      return next();
+    }
+
+    // 3. For modifying requests (POST, PATCH, PUT, DELETE), enforce strict write permissions
     const permittedModules = ROLES_PERMISSIONS[user.role] || [];
-    if (user.role === "super_admin" || permittedModules.includes(moduleName)) {
+    
+    // Administration roles cannot perform general operational write tasks (like creating dossiers or creating bills),
+    // except if the specific route has explicit internal role checks (which we handle inside the route itself, e.g., approving a bon or signing).
+    const adminRoles = ["pdg", "dg", "dga", "daf", "auditeur1", "auditeur2"];
+    if (adminRoles.includes(user.role)) {
+      // Block creation/modification of dossiers/clients/facturation/comptabilite operational data.
+      // They are only allowed to modify "bons" or "taches".
+      const allowedWriteModules = ["bons", "taches"];
+      if (!allowedWriteModules.includes(moduleName)) {
+        console.warn(`[RBAC] Administration write action block for ${user.email} (Rôle: ${user.role}, Module: ${moduleName})`);
+        return res.status(403).render("errors/403", {
+          message: `Accès refusé : En tant que membre de la Direction, vous pouvez visualiser toutes les données et valider les bons, mais vous ne pouvez pas créer ou modifier des fiches opérationnelles directement (ex: dossiers, clients, factures).`
+        });
+      }
+    }
+
+    if (permittedModules.includes(moduleName)) {
       return next();
     }
 
