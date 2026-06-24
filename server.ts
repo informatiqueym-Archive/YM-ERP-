@@ -366,7 +366,7 @@ app.use(facturesFournisseurRoutes);
 
 // ==================== 3. OPERATIONS CLIENTS ====================
 
-app.get("/clients", requireAuth, async (req: any, res: any) => {
+app.get("/clients", requireAuth, requireModule("clients"), async (req: any, res: any) => {
   try {
     const clientsList = await prisma.client.findMany({
       include: {
@@ -381,7 +381,7 @@ app.get("/clients", requireAuth, async (req: any, res: any) => {
   }
 });
 
-app.post("/clients/new", requireAuth, async (req: any, res: any) => {
+app.post("/clients/new", requireAuth, requireModule("clients"), async (req: any, res: any) => {
   try {
     const { nom, niu, rccm, tel, adresse } = req.body;
     if (!nom) {
@@ -410,7 +410,34 @@ app.post("/clients/new", requireAuth, async (req: any, res: any) => {
   }
 });
 
-app.post("/clients/update/:id", requireAuth, async (req: any, res: any) => {
+// Endpoint API pour la création rapide de client (utilisé en AJAX depuis la création de dossier)
+app.post("/api/clients/quick", requireAuth, requireModule("clients"), async (req: any, res: any) => {
+  try {
+    const { nom, niu, rccm, tel, adresse } = req.body;
+    if (!nom) {
+      return res.status(400).json({ success: false, error: "La raison sociale du client est obligatoire." });
+    }
+
+    const newClient = await prisma.client.create({
+      data: {
+        nom,
+        niu: niu || null,
+        rccm: rccm || null,
+        tel: tel || null,
+        adresse: adresse || null,
+        societe: res.locals.user?.societe || "YM-TRANSIT Transit & Logistics Ltd",
+      },
+    });
+
+    await logActivity(req.session.userId, "CREATION_CLIENT_RAPIDE", "Client", newClient.id);
+    return res.json({ success: true, client: newClient });
+  } catch (error: any) {
+    console.error(error);
+    return res.status(500).json({ success: false, error: "Erreur lors de la création du client: " + (error.message || error) });
+  }
+});
+
+app.post("/clients/update/:id", requireAuth, requireModule("clients"), async (req: any, res: any) => {
   try {
     const clId = parseInt(req.params.id);
     const { nom, niu, rccm, tel, adresse } = req.body;
@@ -436,7 +463,7 @@ app.post("/clients/update/:id", requireAuth, async (req: any, res: any) => {
   }
 });
 
-app.post("/clients/delete/:id", requireAuth, async (req: any, res: any) => {
+app.post("/clients/delete/:id", requireAuth, requireModule("clients"), async (req: any, res: any) => {
   try {
     const clId = parseInt(req.params.id);
     const client = await prisma.client.findUnique({ where: { id: clId } });
